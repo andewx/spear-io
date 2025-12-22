@@ -40,7 +40,7 @@ class RadarVisualization {
     // Implementation of range profile rendering goes here
   }
 
-  drawRangeProfile(){
+  renderRangeProfile(){
     if (!this.rangeData) return;
 
     const ctx = this.ctx;
@@ -121,13 +121,19 @@ class RadarVisualization {
     this.render();
   }
 
-  setScenario(scenario) {
+
+  setScenarioData(state) {
+    this.simulationState = state;
+    this.render();
+  }
+
+ setScenario(scenario) {
     this.scenario = scenario;
     this.precipitationImage = null;
     
     // Load precipitation field image if available
     if (scenario.precipitationFieldImage) {
-      this.loadPrecipitationImage(scenario.precipitationFieldImage);
+       this.loadPrecipitationImage(scenario.precipitationFieldImage);
     } else {
       this.render();
     }
@@ -274,7 +280,7 @@ class RadarVisualization {
     }
     
   
-    this.drawRangeProfile();
+    this.renderRangeProfile();
 
     //3. Restore to default state
     ctx.restore();
@@ -589,7 +595,7 @@ class RadarVisualization {
     
     // Simulation time
     if (this.simulationState) {
-      data.push(`Time: ${this.simulationState.time.toFixed(1)}s`);
+      data.push(`Time: ${this.simulationState.timeElapsed.toFixed(1)}s`);
     }
     
     // SAM info
@@ -634,7 +640,7 @@ class RadarVisualization {
       if (inflightMissiles.length > 0) {
         data.push(`Missiles: ${inflightMissiles.length} inflight`);
         inflightMissiles.forEach(missile => {
-          const tof = (this.simulationState.time - missile.launchTime).toFixed(1);
+          const tof = (this.simulationState.timeElapsed - missile.launchTime).toFixed(1);
           data.push(`  ${missile.type} (t=${tof}s)`);
         });
       }

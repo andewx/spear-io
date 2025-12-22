@@ -166,48 +166,16 @@ function viewScenario(e) {
 /**
  * Handle scenario selection from dropdown
  */
-async function selectScenario(e) {
+async function handleSelectScenario(e) {
   const scenarioId = e?.currentTarget?.value;
   
   if (!scenarioId) {
-    console.log('No scenario selected');
+    console.log('[Bindings] No scenario selected');
     return;
   }
   
-  // Get scenario from appState
-  if (typeof appState !== 'undefined' && appState.scenarios) {
-    const selectedScenario = appState.scenarios.find(s => s.id === scenarioId);
-
-    if (selectedScenario === undefined) {
-      console.error('Scenario not found:', scenarioId);
-      return;
-    }
-    
-    if (selectedScenario) {
-      appState.selectedScenario = selectedScenario;
-      
-      // Update visualization if available
-      if (typeof visualization !== 'undefined' && visualization.setScenario) {
-        visualization.setScenario(selectedScenario);
-      }
-
-      // Init Simulation State
-      appState.simulationKey = null;
-      await initSimulation(scenarioId);
-      await getRangeProfile(scenarioId);
-
-            // Visualization Render with updated range profile
-      if (typeof visualization !== 'undefined' && visualization.render) {
-          visualization.render();
-      }
-          
-      console.log('Selected Scenario:', selectedScenario.name);
-    } else {
-      console.error('Scenario not found:', scenarioId);
-    }
-  } else {
-    console.error('appState or scenarios not available');
-  }
+  // Delegate to app.js
+  await selectScenario(scenarioId);
 }
 
 // ============================================================================
@@ -279,268 +247,29 @@ async function generatePrecipitation(e) {
 // ============================================================================
 // Simulation Handlers
 // ============================================================================
-async function getRangeProfile(scenarioId){
-    let result = null;
-    
-    try {
-     const response = await fetch('/api/simulation/getRanges', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        scenarioId,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Simulation failed');
-    }
-    
-    result = await response.json();
-    } catch (error) {
-        console.error('Error fetching range profile:', error);
-        return; // Exit early if error occurs
-    }
 
-    //Pass Range Data to Visualization Module
-    if (result && typeof visualization !== 'undefined' && visualization.updateRangeProfile) {
-        visualization.updateRangeProfile(result.data);
-    }
-}
-
-async function stepSimulation(e) {
+/**
+ * Step simulation forward
+ */
+async function handleStepSimulation(e) {
   e?.preventDefault();
-  const element = e.currentTarget;
-  const scenarioId = element.getAttribute('data-id') || getSelectedScenario();
-  
-  if (!scenarioId) {
-    alert('Please select a scenario first');
-    console.error('Scenario ID required');
-    return;
-  }
-  
-  const resultsPanel = document.getElementById('resultsPanel');
-  const stepBtn = document.getElementById('stepSimBtn');
-  const btnText = document.getElementById('stepSimBtnText');
-  const btnSpinner = document.getElementById('stepSimBtnSpinner');
-
-
-  
-  try {
-    // Show loading state
-    if (stepBtn) stepBtn.disabled = true;
-    if (btnText) btnText.classList.add('d-none');
-    if (btnSpinner) btnSpinner.classList.remove('d-none');
-    
-    if (resultsPanel) {
-      resultsPanel.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Stepping simulation...';
-    }
-    
-    const response = await fetch('/api/simulation/step', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({simulationKey: appState.simulationKey}),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Simulation step failed');
-    }
-    
-    const result = await response.json();
-    
-    console.log(`Simulation step result:`, result.data.result);
-    // Display results
-    if (resultsPanel && result.data) {
-      displaySimulationResults(result.data.result);
-    }
-    
-  } catch (error) {
-    console.error('Simulation step error:', error);
-    if (resultsPanel) {
-      resultsPanel.innerHTML = `
-        <div class="alert alert-danger mb-0">
-          <strong>Error:</strong> ${error.message}
-        </div>
-      `;
-    }
-  } finally {
-    // Reset button state
-    if (stepBtn) stepBtn.disabled = false;
-    if (btnText) btnText.classList.remove('d-none');
-    if (btnSpinner) btnSpinner.classList.add('d-none');
-  }
+  await stepSimulation();
 }
 
 /**
- * Run simulation
+ * Run simulation to completion
  */
-async function runSimulation(e) {
+async function handleRunSimulation(e) {
   e?.preventDefault();
-  const element = e.currentTarget;
-  const scenarioId = element.getAttribute('data-id') || getSelectedScenario();
-  
-  if (!scenarioId) {
-    alert('Please select a scenario first');
-    console.error('Scenario ID required');
-    return;
-  }
-  
-  const resultsPanel = document.getElementById('resultsPanel');
-  const runBtn = document.getElementById('runSimBtn');
-  const btnText = document.getElementById('btnText');
-  const btnSpinner = document.getElementById('btnSpinner');
-
-  //await initSimulation(scenarioId);
-  //await getRangeProfile(scenarioId);
-
-  // Visualization Render with updated range profile
-  if (typeof visualization !== 'undefined' && visualization.render) {
-      visualization.render();
-  }
-  
-  try {
-    // Show loading state
-    if (runBtn) runBtn.disabled = true;
-    if (btnText) btnText.classList.add('d-none');
-    if (btnSpinner) btnSpinner.classList.remove('d-none');
-    
-    if (resultsPanel) {
-      resultsPanel.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Running simulation...';
-    }
-    
-    const response = await fetch('/api/simulation/run', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({simulationKey: appState.simulationKey}),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Simulation failed');
-    }
-    
-    const result = await response.json();
-    
-    console.log(`Simulation result:`, result.data.result);
-    // Display results
-    if (resultsPanel && result.data) {
-      displaySimulationResults(result.data.result);
-    }
-    
-  } catch (error) {
-    console.error('Simulation error:', error);
-    if (resultsPanel) {
-      resultsPanel.innerHTML = `
-        <div class="alert alert-danger mb-0">
-          <strong>Error:</strong> ${error.message}
-        </div>
-      `;
-    }
-  } finally {
-    // Reset button state
-    if (runBtn) runBtn.disabled = false;
-    if (btnText) btnText.classList.remove('d-none');
-    if (btnSpinner) btnSpinner.classList.add('d-none');
-  }
+  await runSimulation();
 }
 
 /**
- * Reset simulation UI
+ * Reset simulation
  */
-function resetSimulation(e) {
+async function handleResetSimulation(e) {
   e?.preventDefault();
-  
-  // Clear selections
-  const platformSelect = document.getElementById('platformSelect');
-  const scenarioSelect = document.getElementById('scenarioSelect');
-  const resultsPanel = document.getElementById('resultsPanel');
-  
-  if (platformSelect) platformSelect.value = '';
-  if (scenarioSelect) scenarioSelect.value = '';
-  if (resultsPanel) {
-    resultsPanel.innerHTML = '<p>No simulation run yet</p>';
-  }
-  
-  // Clear visualization if present
-  if (typeof clearVisualization === 'function') {
-    clearVisualization();
-  }
-}
-
-/**
- * Display simulation results
- * @param {Object} results - Simulation results data
- */
-function displaySimulationResults(results) {
-  const resultsPanel = document.getElementById('resultsPanel');
-  if (!resultsPanel) return;
-  
-  let html = '<div class="simulation-results">';
-  
-  // Add results display based on data structure
-  if (results.success) {
-
-    html += `<div class="alert alert-success">`;
-    html += `<strong>Outcome:</strong> Success! The HARM successfully neutralized the SAM system before being intercepted.`;
-    html += '</div>';
-  }else{
-    html += `<div class="alert alert-danger">`;
-    html += `<strong>Outcome:</strong> Failure. The SAM system intercepted the HARM before it could neutralize the threat.`;
-    html += '</div>';
-  }
-  
-  //Display Missile Information - Ensure Null Checks on all fields
-    let missiles = results.missileResults.missiles || [];
-
-
-    html += '<h6 class="text-primary mt-3">Results</h6>';
-    html += '<dl class="row small mb-0">';
-
-    try{
-    
-      for (const missile of missiles) {
-        let key = missile.launchedBy === 'sam' ? 'SAM Missile' : 'HARM Missile';
-        let value = `Launched at ${missile.launchTime.toFixed(2)}`;
-
-
-        html += `<dt class="col-sm-6">${key}:</dt>`;
-        
-
-        if (missile.timeOfImpact !== null) {
-            value += `, Impact at ${missile.timeOfImpact.toFixed(2)}`;
-   
-        } else {
-            value += `, No Impact`;
-        }
-
-        
-        if (missile.impactPosition !== null) {
-            value += `, Position: (${missile.impactPosition.x.toFixed(2)} km, ${missile.impactPosition.y.toFixed(2)} km)`;
-        } else {
-            value += `, Position: N/A`;
-        }
-        value += `, Status: ${missile.status.charAt(0).toUpperCase() + missile.status.slice(1)}`;
-        html += `<dd class="col-sm-6">${value}</dd>`;
-        html += `<dd class="col-sm-6">${value}</dd>`;
-      }
-
-  
-      html += '</dl>';
-
-      html += '</div>';
-    } catch (error) {
-      console.error('Error displaying missile results:', error);
-      html += `<div class="alert alert-danger">Error displaying missile results.</div>`;
-    }
-  resultsPanel.innerHTML = html;
-
+  await resetSimulation();
 }
 
 
@@ -595,10 +324,11 @@ bluejs.addBinding('createScenario', null, createScenario);
 bluejs.addBinding('editScenario', null, editScenario);
 bluejs.addBinding('deleteScenario', null, deleteScenario);
 bluejs.addBinding('viewScenario', null, viewScenario);
-bluejs.addBinding('selectScenario', null, selectScenario);
+bluejs.addBinding('selectScenario', null, handleSelectScenario);
 bluejs.addBinding('generatePrecipitation', null, generatePrecipitation);
-bluejs.addBinding('runSimulation', null, runSimulation);
-bluejs.addBinding('resetSimulation', null, resetSimulation);
+bluejs.addBinding('runSimulation', null, handleRunSimulation);
+bluejs.addBinding('stepSimulation', null, handleStepSimulation);
+bluejs.addBinding('resetSimulation', null, handleResetSimulation);
 bluejs.addBinding('distributionToggle', null, distributionToggle);
 bluejs.addBinding('gridWidth',null , scenarioGridValueInputWidth);
 bluejs.addBinding('gridHeight',null , scenarioGridValueInputHeight);

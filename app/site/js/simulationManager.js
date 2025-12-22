@@ -7,36 +7,41 @@ class SimulationManager {
   constructor() {
     this.simulationKey = null;
     this.scenarioId = null;
+    this.scenario = null;
     this.isRunning = false;
     this.isPaused = false;
     this.stepInterval = null;
     this.autoStepDelay = 100; // ms between auto steps
     this.visualization = null;
+    this.state = null;
   }
 
   /**
    * Initialize simulation with a scenario
    */
-  async initialize(scenarioId, visualization) {
+  async initialize(scenario, visualization) {
     try {
-      this.scenarioId = scenarioId;
+      this.scenario = scenario;
+      this.scenarioId = scenario.id;
       this.visualization = visualization;
 
       // Initialize simulation on backend
-      const result = await simulationAPI.init(scenarioId);
+      const result = await simulationAPI.init(this.scenarioId);
       this.simulationKey = result.simulationKey;
 
       // Get initial state
       const state = await simulationAPI.getState();
+      this.state = state;
       
       // Update visualization
       if (this.visualization) {
-        this.visualization.setScenarioData(state);
-        await getRangeProfile(scenarioId);
+        await this.visualization.setScenario(this.scenario)
+        await this.visualization.updateRangeProfile(await simulationAPI.getPrecipRanges());
+        await this.visualization.setScenarioData(state);
         this.visualization.render();
       }
 
-      console.log('[Simulation] Initialized:', { scenarioId, simulationKey: this.simulationKey });
+      console.log('[Simulation] Initialized:', { scenarioId: this.scenarioId, simulationKey: this.simulationKey });
       return state;
     } catch (error) {
       console.error('[Simulation] Initialization failed:', error);

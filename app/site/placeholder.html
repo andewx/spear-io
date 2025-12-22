@@ -6,123 +6,140 @@
   <title>SPEAR - Synthetic Precipitative Environmental Attenuation Radar</title>
   <link rel="stylesheet" href="/css/styles.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 <body>
-  <!-- Header -->
-  <header class="navbar navbar-dark sticky-top">
+  <!-- Full-Screen Canvas -->
+  <div class="fullscreen-canvas">
+    <canvas id="radarCanvas"></canvas>
+  </div>
+
+  <!-- Glass-Pane Header -->
+  <header class="glass-header">
     <div class="container-fluid">
-      <span class="navbar-brand mb-0 h1">
-        <span class="radar-icon">📡</span> SPEAR
-      </span>
-      <span class="navbar-text">
-        Synthetic Precipitative Environmental Attenuation Radar
-      </span>
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="brand">
+          <span class="radar-icon">📡</span>
+          <span class="brand-text">SPEAR</span>
+          <span class="brand-subtitle">Synthetic Precipitative Environmental Attenuation Radar</span>
+        </span>
+        <div class="sim-time-display">
+          <span class="time-label">T:</span>
+          <span id="sim-time" class="time-value">0.0 s</span>
+        </div>
+      </div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <div class="container-fluid main-container">
-    <div class="row h-100">
-      
-      <!-- Left Panel - Controls -->
-      <div class="col-md-3 control-panel">
-        <div class="panel-section">
-          <h5>Platform Selection</h5>
-          <div class="mb-3">
-            <label class="form-label">SAM System</label>
-            <select id="samSelect" class="form-select">
-              <option value="">Select SAM...</option>
-            </select>
-            <button id="createSAM" class="btn btn-sm btn-outline-primary mt-2 w-100">
-              Create New SAM
-            </button>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">Fighter Platform</label>
-            <select id="fighterSelect" class="form-select">
-              <option value="">Select Fighter...</option>
-            </select>
-            <button id="createFighter" class="btn btn-sm btn-outline-primary mt-2 w-100">
-              Create New Fighter
-            </button>
-          </div>
-        </div>
+  <!-- Glass-Pane Control Panel (Left) -->
+  <div class="glass-panel glass-panel-left">
+    <div class="panel-header">
+      <i class="bi bi-gear-fill"></i>
+      <span>Controls</span>
+    </div>
+    
+    <div class="panel-content">
+      <!-- Scenario Selection -->
+      <div class="control-group">
+        <label class="control-label">Scenario</label>
+        <select 
+          id="scenarioSelect"
+          bluejs="scenario-selector"
+          bluejs-trigger="change"
+          bluejs-binding="selectScenario"
+          class="form-select form-select-sm">
+          <option value="">Select Scenario...</option>
+        </select>
+        <button 
+          bluejs="btn-create-scenario"
+          bluejs-trigger="click"
+          bluejs-binding="createScenario"
+          class="btn btn-sm btn-outline-primary w-100 mt-2">
+          <i class="bi bi-plus-circle"></i> New Scenario
+        </button>
+      </div>
 
-        <div class="panel-section">
-          <h5>Scenario</h5>
-          <div class="mb-3">
-            <select id="scenarioSelect" class="form-select">
-              <option value="">Select Scenario...</option>
-            </select>
-            <button id="createScenario" class="btn btn-sm btn-outline-primary mt-2 w-100">
-              Create New Scenario
-            </button>
-          </div>
-        </div>
-
-        <div class="panel-section">
-          <h5>Simulation</h5>
-          <button id="runSimulation" class="btn btn-primary w-100 mb-3">
-            Run Simulation
+      <!-- Simulation Controls -->
+      <div class="control-group">
+        <label class="control-label">Simulation</label>
+        <div class="btn-group-vertical w-100" role="group">
+          <button 
+            bluejs="btn-run-sim"
+            bluejs-trigger="click"
+            bluejs-binding="runSimulation"
+            id="runSimBtn"
+            class="btn btn-sm btn-success">
+            <i class="bi bi-play-fill"></i> Run to Completion
           </button>
-          
-          <div id="resultsPanel" class="results-panel" style="display: none;">
-            <h6>Results</h6>
-            <div class="result-item">
-              <span class="label">Detection Range:</span>
-              <span id="detectionRange" class="value">-</span>
-            </div>
-            <div class="result-item">
-              <span class="label">Path Attenuation:</span>
-              <span id="pathAttenuation" class="value">-</span>
-            </div>
-            <div class="result-item">
-              <span class="label">SAM Kill Time:</span>
-              <span id="samKillTime" class="value">-</span>
-            </div>
-            <div class="result-item">
-              <span class="label">HARM Kill Time:</span>
-              <span id="harmKillTime" class="value">-</span>
-            </div>
-            <div class="result-item">
-              <span class="label">Outcome:</span>
-              <span id="outcome" class="value">-</span>
-            </div>
-          </div>
+          <button 
+            bluejs="btn-step-sim"
+            bluejs-trigger="click"
+            bluejs-binding="stepSimulation"
+            id="stepSimBtn"
+            class="btn btn-sm btn-primary">
+            <i class="bi bi-skip-forward-fill"></i> Step Forward
+          </button>
+          <button 
+            bluejs="btn-reset-sim"
+            bluejs-trigger="click"
+            bluejs-binding="resetSimulation"
+            class="btn btn-sm btn-warning">
+            <i class="bi bi-arrow-clockwise"></i> Reset
+          </button>
         </div>
       </div>
 
-      <!-- Right Panel - Visualization -->
-      <div class="col-md-9 visualization-panel">
-        <div class="canvas-container">
-          <canvas id="radarCanvas"></canvas>
-        </div>
-        
-        <div class="legend">
-          <div class="legend-item">
-            <span class="legend-color" style="background: #ff4444;"></span>
-            <span>SAM Position</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-color" style="background: #4444ff;"></span>
-            <span>Fighter Position</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-color" style="background: rgba(255, 255, 100, 0.3);"></span>
-            <span>Detection Range</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-color" style="background: rgba(255, 100, 100, 0.2);"></span>
-            <span>MEMR Circle</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-color" style="background: rgba(100, 200, 255, 0.4);"></span>
-            <span>Precipitation Cells</span>
-          </div>
+      <!-- Platform Management -->
+      <div class="control-group">
+        <label class="control-label">Platform Editor</label>
+        <div id="editorPanel" class="editor-panel">
+          <p class="text-muted small">Loading...</p>
         </div>
       </div>
+    </div>
+  </div>
 
+  <!-- Glass-Pane Results Panel (Right) -->
+  <div class="glass-panel glass-panel-right">
+    <div class="panel-header">
+      <i class="bi bi-bar-chart-fill"></i>
+      <span>Results</span>
+    </div>
+    
+    <div class="panel-content">
+      <div id="resultsPanel" class="results-content">
+        <p class="text-muted small">No simulation run yet</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Glass-Pane Legend (Bottom) -->
+  <div class="glass-panel glass-panel-bottom">
+    <div class="legend-content">
+      <div class="legend-item">
+        <span class="legend-color" style="background: #ff4444;"></span>
+        <span>SAM System</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #4444ff;"></span>
+        <span>Fighter Aircraft</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #ffaa00;"></span>
+        <span>Missiles</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: rgba(255, 68, 68, 0.3);"></span>
+        <span>MEMR Ring</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: rgba(68, 68, 255, 0.3);"></span>
+        <span>Detection Range</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: rgba(200, 200, 200, 0.2);"></span>
+        <span>Precipitation</span>
+      </div>
     </div>
   </div>
 

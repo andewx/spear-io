@@ -14,9 +14,7 @@ import { FormController } from '../controllers/FormController.js';
 const platformController = new PlatformController();
 const scenarioController = new ScenarioController();
 const simulationController = new SimulationController();
-console.log('About to create SyntheticController...');
 const syntheticController = new SyntheticController();
-console.log('SyntheticController created:', syntheticController);
 const formController = new FormController();
 
 // Create main router

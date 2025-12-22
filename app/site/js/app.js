@@ -10,6 +10,8 @@ const appState = {
   selectedFighter: null,
   selectedScenario: null,
   simulationKey: null,
+  simulationManager: null,
+  rangeProfile: null,
 };
 
 // Visualization instance
@@ -21,6 +23,9 @@ let visualization;
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('SPEAR Application Starting...');
+  
+  // Initialize simulation manager
+  appState.simulationManager = new SimulationManager();
   
   // Initialize visualization
   visualization = new RadarVisualization('radarCanvas');
@@ -242,67 +247,201 @@ function updateEditorPanel() {
 }
 
 // ============================================================================
-// 
+// Scenario Selection & Simulation Initialization
+// ============================================================================
+
+/**
+ * Handle scenario selection - initializes simulation and loads range profile
+ */
+async function selectScenario(scenarioId) {
+  if (!scenarioId) {
+    console.log('[App] No scenario selected');
+    appState.selectedScenario = null;
+    appState.simulationKey = null;
+    return;
+  }
+  
+  try {
+    // Find scenario in loaded scenarios
+    const scenario = appState.scenarios.find(s => s.id === scenarioId);
+    if (!scenario) {
+      console.error('[App] Scenario not found:', scenarioId);
+      return;
+    }
+    
+    appState.selectedScenario = scenario;
+    console.log('[App] Selected scenario:', scenario.name);
+    
+    // Initialize simulation with this scenario
+    console.log('[App] Initializing simulation...');
+    const initResult = await appState.simulationManager.initialize(appState.selectedScenario, visualization);
+    appState.simulationKey = appState.simulationManager.getSimulationKey();
+    
+    // Render visualization with updated state
+    if (visualization && visualization.render) {
+      visualization.render();
+    }
+    
+    console.log('[App] Scenario initialization complete');
+    
+  } catch (error) {
+    console.error('[App] Failed to select scenario:', error);
+    alert('Failed to initialize scenario: ' + error.message);
+  }
+}
+
 
 // ============================================================================
 // Simulation
 // ============================================================================
 
+/**
+ * Run simulation to completion
+ */
 async function runSimulation() {
+  if (!appState.selectedScenario || !appState.simulationKey) {
+    alert('Please select a scenario first');
+    return;
+  }
+  
   const resultsPanel = document.getElementById('resultsPanel');
   
-  // Validate selections
-  if (!appState.selectedScenario) {
-    alert('Please select a scenario');
-    return;
+  try {
+    console.log('[App] Running simulation to completion...');
+    
+    if (resultsPanel) {
+      resultsPanel.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Running simulation...';
+    }
+    
+    const result = await appState.simulationManager.runToCompletion();
+    
+    console.log('[App] Simulation completed:', result);
+    
+    // Display results
+    if (resultsPanel && result) {
+      displaySimulationResults(result.result);
+    }
+    
+  } catch (error) {
+    console.error('[App] Simulation failed:', error);
+    if (resultsPanel) {
+      resultsPanel.innerHTML = `
+        <div class="alert alert-danger mb-0">
+          <strong>Error:</strong> ${error.message}
+        </div>
+      `;
+    }
   }
-  
-  if (!appState.selectedSAM) {
-    alert('Please select a SAM system');
-    return;
-  }
-  
-  if (!appState.selectedFighter) {
-    alert('Please select a fighter platform');
+}
+
+/**
+ * Step simulation forward by one time step
+ */
+async function stepSimulation() {
+  if (!appState.selectedScenario || !appState.simulationKey) {
+    alert('Please select a scenario first');
     return;
   }
   
   try {
-    console.log('Running simulation...');
+    const response = await appState.simulationManager.step();
     
-    const results = await simulationAPI.run(
-      appState.selectedScenario.id,
-      appState.selectedSAM.id,
-      appState.selectedFighter.id
-    );
-    
-    console.log('Simulation results:', results);
-    
-    // Update results display
-    document.getElementById('detectionRange').textContent = `${results.detectionRange.toFixed(2)} km`;
-    document.getElementById('pathAttenuation').textContent = `${results.pathAttenuation.toFixed(2)} dB`;
-    document.getElementById('samKillTime').textContent = `${results.samKillTime.toFixed(2)} s`;
-    document.getElementById('harmKillTime').textContent = `${results.harmKillTime.toFixed(2)} s`;
-    
-    const outcomeEl = document.getElementById('outcome');
-    if (results.success) {
-      outcomeEl.textContent = 'HARM SUCCESS';
-      outcomeEl.className = 'value success';
-    } else {
-      outcomeEl.textContent = 'SAM SUCCESS';
-      outcomeEl.className = 'value failure';
+    if (response) {
+      const { timeElapsed, simulationComplete, state } = response;
+      
+      // Update time display
+      const timeEl = document.getElementById('sim-time');
+      if (timeEl) {
+        timeEl.textContent = `${timeElapsed.toFixed(1)} s`;
+      }
+      
+      if (simulationComplete) {
+        console.log('[App] Simulation complete at t =', timeElapsed, 's');
+      }
     }
     
-    // Show results panel
-    resultsPanel.style.display = 'block';
-    
-    // Update visualization
-    visualization.setResults(results);
-    
   } catch (error) {
-    console.error('Simulation failed:', error);
-    alert(`Simulation failed: ${error.message}`);
+    console.error('[App] Step failed:', error);
   }
+}
+
+/**
+ * Reset simulation to initial state
+ */
+async function resetSimulation() {
+  if (!appState.simulationManager) {
+    return;
+  }
+  
+  try {
+    await appState.simulationManager.reset();
+    
+    // Clear results panel
+    const resultsPanel = document.getElementById('resultsPanel');
+    if (resultsPanel) {
+      resultsPanel.innerHTML = '<p class="text-muted">No simulation run yet</p>';
+    }
+    
+    // Reset time display
+    const timeEl = document.getElementById('sim-time');
+    if (timeEl) {
+      timeEl.textContent = '0.0 s';
+    }
+    
+    console.log('[App] Simulation reset');
+  } catch (error) {
+    console.error('[App] Reset failed:', error);
+  }
+}
+
+/**
+ * Display simulation results
+ */
+function displaySimulationResults(results) {
+  const resultsPanel = document.getElementById('resultsPanel');
+  if (!resultsPanel) return;
+  
+  let html = '<div class="simulation-results">';
+  
+  // Outcome
+  if (results.success) {
+    html += '<div class="alert alert-success">';
+    html += '<strong>Outcome:</strong> Success! The HARM successfully neutralized the SAM system.';
+    html += '</div>';
+  } else {
+    html += '<div class="alert alert-danger">';
+    html += '<strong>Outcome:</strong> Failure. The SAM system intercepted the HARM.';
+    html += '</div>';
+  }
+  
+  // Missile results
+  if (results.missileResults && results.missileResults.missiles) {
+    html += '<h6 class="text-primary mt-3">Missile Results</h6>';
+    html += '<dl class="row small mb-0">';
+    
+    results.missileResults.missiles.forEach(missile => {
+      const key = missile.launchedBy === 'sam' ? 'SAM Missile' : 'HARM Missile';
+      let value = `Launched at ${missile.launchTime.toFixed(2)} s`;
+      
+      if (missile.timeOfImpact !== null) {
+        value += `, Impact at ${missile.timeOfImpact.toFixed(2)} s`;
+      }
+      
+      if (missile.impactPosition) {
+        value += `, Position: (${missile.impactPosition.x.toFixed(2)}, ${missile.impactPosition.y.toFixed(2)}) km`;
+      }
+      
+      value += `, Status: ${missile.status.charAt(0).toUpperCase() + missile.status.slice(1)}`;
+      
+      html += `<dt class="col-sm-6">${key}:</dt>`;
+      html += `<dd class="col-sm-6">${value}</dd>`;
+    });
+    
+    html += '</dl>';
+  }
+  
+  html += '</div>';
+  resultsPanel.innerHTML = html;
 }
 
 // ============================================================================
