@@ -42,7 +42,7 @@ export async function renderView(
     ...additionalData
   } = options;
 
-  // Render the view content
+
   const viewPath = path.join(VIEWS_DIR, `${viewName}.ejs`);
   const viewContent = await ejs.renderFile(viewPath, {
     ...data,

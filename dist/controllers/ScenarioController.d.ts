@@ -33,5 +33,10 @@ export declare class ScenarioController {
      * Error handler
      */
     private handleError;
+    /**
+     * Parse scenario data from form submission
+     * Handles array-based platform structure from form fields
+     */
+    private parseScenarioFromFormData;
 }
 //# sourceMappingURL=ScenarioController.d.ts.map

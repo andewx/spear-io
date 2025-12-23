@@ -11,9 +11,9 @@
   --accent-primary: #48beff;
   --accent-secondary: #3dfaff;
   --border-color: #3dfaff;
-  --success-color: #4ade80;
-  --warning-color: #fbbf24;
-  --danger-color: #ef4444;
+  --success-color: #4ade809a;
+  --warning-color: #fbbe2496;
+  --danger-color: #ef44448f;
   --glass-bg: rgba(10, 10, 10, 0.75);
   --glass-border: rgba(61, 250, 255, 0.3);
   --glass-glow: rgba(72, 190, 255, 0.2);
@@ -462,9 +462,10 @@ body {
     display: none;
   }
 }
-  animation: fadeIn 0.2s ease-in;
-}
 
+/* ============================================================================
+ * Overlay Styles
+ * ============================================================================ */
 .overlay-backdrop {
   position: absolute;
   top: 0;
@@ -480,9 +481,10 @@ body {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  margin: 5% auto;
   max-width: 800px;
   width: 90%;
-  max-height: 90vh;
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);

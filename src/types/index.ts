@@ -8,7 +8,6 @@
 // ============================================================================
 
 export type TPulseModel = 'short' | 'medium' | 'long';
-export type TFighterType = 'F-16' | 'F-22' | 'F-35';
 
 export interface ISAMSystem {
   id: string;
@@ -23,12 +22,31 @@ export interface ISAMSystem {
   missileTrackingFrequency: number; // GHz
 }
 
+// Fighter platform interface and model
 export interface IFighterPlatform {
   id: string;
-  type: TFighterType;
+  name?: string;
+  type: string; // e.g., "F-16", "F-22", "F-35"
   velocity: number; // Mach number
+  capacity?: number; // Number of weapon hardpoints
   rcs: IRCSProfile; // Multi-aspect RCS (Swerling 2 model)
-  harmParams: IHARMParameters;
+  harmParams: IHARMParameters; // Use harmParams to match JSON
+  harm?: IHARMParameters; // Alias for compatibility
+  dynamicModel?: IFighterModel; // Optional dynamic flight model
+}
+
+export interface IFighterModel extends IFighterPlatform {
+  fuelCapacity: number; // kg
+  fuelConsumptionRate: number; // kg/s at max thrust
+  intertiaMoments: InertiaMoments;
+  maxGLoad: number; // g's
+  weight: number; // kg
+  maxVelocity: number; // Mach number
+}
+export interface InertiaMoments{
+  roll: number; // kg·m²
+  pitch: number; // kg·m²
+  yaw: number; // kg·m²
 }
 
 export interface IRCSProfile {
@@ -61,7 +79,7 @@ export interface IPlatformState {
   position: IPosition2D; // Current position (km)
   velocity: IVelocity2D; // Current velocity (km/s)
   heading: number; // Current heading (degrees)
-  status: 'active' | 'destroyed' | 'escaped';
+  status: 'active' | 'destroyed';
 }
 
 export interface IVelocity2D {
@@ -96,6 +114,12 @@ export interface IScenario {
   precipitationFieldOverlay?: string; // Filename of generated precipitation field overlay PNG
   createdAt?: Date;
   updatedAt?: Date;
+  latLongOrigin?: IScenarioLatLong; // Optional lat/long origin for georeferencing
+}
+
+export interface IScenarioLatLong{
+  latitude: number; // degrees
+  longitude: number; // degrees
 }
 
 export interface IGridBounds {
@@ -111,23 +135,26 @@ export interface IPosition2D {
 }
 
 export interface IScenarioPlatforms {
-  sam: IScenarioPlatform;
-  fighter: IScenarioFighter;
+  sams: IScenarioPlatform[];
+  fighters: IScenarioPlatform[];
 }
 
+
+// ============================================================================
+// Scenario Platform Types
+// ============================================================================
+// TODO : Create a vector embedding for platform controls for AI model integration
 export interface IScenarioPlatform {
-  configId: string; // References ISAMSystem.id or IFighterPlatform.id
+  id: string; // Platform instance ID (e.g., "sam-1", "fighter-1")
+  configId: string; // References ISAMSystem.id or IFighterPlatform.id for config lookup
+  type: 'sam' | 'fighter';
+  platform?: ISAMSystem | IFighterPlatform; // Loaded platform config (populated after loading)
   position: IPosition2D;
-  heading: number; // degrees
-}
-
-export interface IScenarioFighter extends IScenarioPlatform {
-  flightPath: IFlightPath;
-}
-
-export interface IFlightPath {
-  type: TFlightPathType;
-  params?: Record<string, unknown>; // Optional path-specific parameters
+  velocity?: number; // Mach number
+  heading?: number; // degrees
+  flightPath?: TFlightPathType; // Fighter flight path type
+  data?: Record<string, unknown>; // Additional platform-specific data
+  controlSchema?: Record<string, unknown>; // Control schema for AI integration
 }
 
 export type TFlightPathType = 'straight' | 'evasive' | 'memrFringe';

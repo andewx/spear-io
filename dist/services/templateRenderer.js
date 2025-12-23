@@ -20,7 +20,6 @@ const VIEWS_DIR = path.join(TEMPLATES_DIR, 'views');
  */
 export async function renderView(viewName, data = {}, options = {}) {
     const { layout = 'main', page = '', title = 'SPEAR', ...additionalData } = options;
-    // Render the view content
     const viewPath = path.join(VIEWS_DIR, `${viewName}.ejs`);
     const viewContent = await ejs.renderFile(viewPath, {
         ...data,

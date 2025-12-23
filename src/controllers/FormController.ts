@@ -65,7 +65,6 @@ export class FormController {
         return;
       }
 
-
       // Render edit form (similar to create, but pre-populated)
       await sendView(res, 'forms/scenario-edit', {
         scenario,

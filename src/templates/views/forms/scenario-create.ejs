@@ -21,96 +21,48 @@
   <div class="row">
     <div class="col-md-4 mb-3">
       <label class="form-label">Width (km)</label>
-      <input id="gridWidthInput" bluejs="gridWidth" bluejs-trigger="change" bluejs-binding="gridWidth" type="number" name="grid[width]" class="form-control bg-dark text-light border-secondary" required value="500">
+      <input id="gridWidthInput" bluejs="gridWidth" bluejs-trigger="change" bluejs-binding="gridWidth" type="number" name="grid[width]" class="form-control bg-dark text-light border-secondary" required value="800">
     </div>
     <div class="col-md-4 mb-3">
       <label class="form-label">Height (km)</label>
-      <input id="gridHeightInput" bluejs="gridHeight" bluejs-trigger="change" bluejs-binding="gridHeight" type="number" name="grid[height]" class="form-control bg-dark text-light border-secondary" required value="500">
+      <input id="gridHeightInput" bluejs="gridHeight" bluejs-trigger="change" bluejs-binding="gridHeight" type="number" name="grid[height]" class="form-control bg-dark text-light border-secondary" required value="450">
     </div>
     <div class="col-md-4 mb-3">
       <label class="form-label">Grid Resolution (px/km)</label>
-      <input type="number" name="grid[resolution]" class="form-control bg-dark text-light border-secondary" required value="500">
+      <input type="number" name="grid[resolution]" class="form-control bg-dark text-light border-secondary" required value="2">
     </div>
     <div class="col-md-4 mb-3">
       <label class="form-label">Time Step (sec)</label>
-      <input type="number" step="0.1" name="timeStep" class="form-control bg-dark text-light border-secondary" required value="1.0">
+      <input type="number" step="0.1" name="timeStep" class="form-control bg-dark text-light border-secondary" required value="0.5">
     </div>
   </div>
 
-  <h6 class="text-primary mt-4 mb-3">SAM Platform</h6>
+  <h6 class="text-primary mt-4 mb-3">
+    SAM Systems
+    <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="window.addSAMPlatform()">
+      <i class="bi bi-plus-circle"></i> Add SAM
+    </button>
+  </h6>
   
-  <div class="row">
-    <div class="col-md-12 mb-3">
-      <label class="form-label">SAM System</label>
-      <select name="platforms[sam][configId]" class="form-select bg-dark text-light border-secondary" required>
-        <option value="">Select SAM System...</option>
-        <% if (samSystems && samSystems.length > 0) { %>
-          <% samSystems.forEach(sam => { %>
-            <option value="<%= sam.id %>"><%= sam.name %></option>
-          <% }); %>
-        <% } %>
-      </select>
-    </div>
+  <div id="sam-platforms-container">
+    <!-- SAM platforms will be added here -->
   </div>
 
-  <div class="row">
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position X (km)</label>
-      <input type="number" name="platforms[sam][position][x]" class="form-control bg-dark text-light border-secondary" required value="0">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position Y (km)</label>
-      <input type="number" name="platforms[sam][position][y]" class="form-control bg-dark text-light border-secondary" required value="0">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Heading (deg)</label>
-      <input type="number" name="platforms[sam][heading]" class="form-control bg-dark text-light border-secondary" required value="0">
-    </div>
-  </div>
-
-  <h6 class="text-primary mt-4 mb-3">Fighter Platform</h6>
+  <h6 class="text-primary mt-4 mb-3">
+    Fighter Aircraft
+    <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="window.addFighterPlatform()">
+      <i class="bi bi-plus-circle"></i> Add Fighter
+    </button>
+  </h6>
   
-  <div class="row">
-    <div class="col-md-12 mb-3">
-      <label class="form-label">Fighter Aircraft</label>
-      <select name="platforms[fighter][configId]" class="form-select bg-dark text-light border-secondary" required>
-        <option value="">Select Fighter...</option>
-        <% if (fighters && fighters.length > 0) { %>
-          <% fighters.forEach(fighter => { %>
-            <option value="<%= fighter.id %>"><%= fighter.type %></option>
-          <% }); %>
-        <% } %>
-      </select>
-    </div>
-  </div>
-
-  <div class="row">
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position X (km)</label>
-      <input type="number" name="platforms[fighter][position][x]" class="form-control bg-dark text-light border-secondary" required value="50">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position Y (km)</label>
-      <input type="number" name="platforms[fighter][position][y]" class="form-control bg-dark text-light border-secondary" required value="250">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Heading (deg)</label>
-      <input type="number" name="platforms[fighter][heading]" class="form-control bg-dark text-light border-secondary" required value="0">
-    </div>
-  </div>
-
-  <div class="mb-3">
-    <label class="form-label">Flight Path Type</label>
-    <select name="platforms[fighter][flightPath][type]" class="form-select bg-dark text-light border-secondary" required>
-      <option value="straight">Straight</option>
-      <option value="evasive">Evasive</option>
-    </select>
+  <div id="fighter-platforms-container">
+    <!-- Fighter platforms will be added here -->
   </div>
 
   <h6 class="text-primary mt-4 mb-3">Environment</h6>
   
   <div class="form-check form-switch mb-3">
-    <input class="form-check-input" type="checkbox" name="environment[precipitation][enabled]" id="precipitationEnabled" onchange="togglePrecipitation()">
+    <input class="form-check-input" type="checkbox" name="environment[precipitation][enabled]" id="precipitationEnabled" onchange="window.togglePrecipitation()">
     <label class="form-check-label" for="precipitationEnabled">
       Enable Precipitation
     </label>
@@ -120,15 +72,15 @@
     <div class="row">
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Rain Rate (mm/hr)</label>
-        <input type="number" name="environment[precipitation][nominalRainRate]" class="form-control bg-dark text-light border-secondary" value="25">
+        <input type="number" name="environment[precipitation][nominalRainRate]" class="form-control bg-dark text-light border-secondary" value="10">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Cell Size (km)</label>
-        <input type="number" name="environment[precipitation][nominalCellSize]" class="form-control bg-dark text-light border-secondary" value="15">
+        <input type="number" name="environment[precipitation][nominalCellSize]" class="form-control bg-dark text-light border-secondary" value="12">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Coverage (%)</label>
-        <input type="number" step="0.1" name="environment[precipitation][nominalCoverage]" class="form-control bg-dark text-light border-secondary" value="0.5">
+        <input type="number" step="0.01" name="environment[precipitation][nominalCoverage]" class="form-control bg-dark text-light border-secondary" value="0.35">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Alpha Distribution</label>
@@ -136,7 +88,7 @@
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Max Rain Rate Cap</label>
-        <input type="number" step="0.1" name="environment[precipitation][maxRainRateCap]" class="form-control bg-dark text-light border-secondary" value="45.0">
+        <input type="number" step="0.1" name="environment[precipitation][maxRainRateCap]" class="form-control bg-dark text-light border-secondary" value="35.0">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Sigmoid K (Compression)</label>
@@ -152,14 +104,3 @@
 </form>
 
 <script>
-function togglePrecipitation() {
-  const enabled = document.getElementById('precipitationEnabled').checked;
-  const fields = document.getElementById('precipitationFields');
-  
-  if (enabled) {
-    fields.classList.remove('d-none');
-  } else {
-    fields.classList.add('d-none');
-  }
-}
-</script>

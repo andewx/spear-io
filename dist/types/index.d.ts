@@ -3,7 +3,6 @@
  * Naming convention: Interfaces use I prefix, type aliases use T prefix
  */
 export type TPulseModel = 'short' | 'medium' | 'long';
-export type TFighterType = 'F-16' | 'F-22' | 'F-35';
 export interface ISAMSystem {
     id: string;
     name: string;
@@ -18,10 +17,27 @@ export interface ISAMSystem {
 }
 export interface IFighterPlatform {
     id: string;
-    type: TFighterType;
+    name?: string;
+    type: string;
     velocity: number;
+    capacity?: number;
     rcs: IRCSProfile;
     harmParams: IHARMParameters;
+    harm?: IHARMParameters;
+    dynamicModel?: IFighterModel;
+}
+export interface IFighterModel extends IFighterPlatform {
+    fuelCapacity: number;
+    fuelConsumptionRate: number;
+    intertiaMoments: InertiaMoments;
+    maxGLoad: number;
+    weight: number;
+    maxVelocity: number;
+}
+export interface InertiaMoments {
+    roll: number;
+    pitch: number;
+    yaw: number;
 }
 export interface IRCSProfile {
     nose: number;
@@ -46,7 +62,7 @@ export interface IPlatformState {
     position: IPosition2D;
     velocity: IVelocity2D;
     heading: number;
-    status: 'active' | 'destroyed' | 'escaped';
+    status: 'active' | 'destroyed';
 }
 export interface IVelocity2D {
     x: number;
@@ -74,6 +90,11 @@ export interface IScenario {
     precipitationFieldOverlay?: string;
     createdAt?: Date;
     updatedAt?: Date;
+    latLongOrigin?: IScenarioLatLong;
+}
+export interface IScenarioLatLong {
+    latitude: number;
+    longitude: number;
 }
 export interface IGridBounds {
     width: number;
@@ -86,20 +107,20 @@ export interface IPosition2D {
     y: number;
 }
 export interface IScenarioPlatforms {
-    sam: IScenarioPlatform;
-    fighter: IScenarioFighter;
+    sams: IScenarioPlatform[];
+    fighters: IScenarioPlatform[];
 }
 export interface IScenarioPlatform {
+    id: string;
     configId: string;
+    type: 'sam' | 'fighter';
+    platform?: ISAMSystem | IFighterPlatform;
     position: IPosition2D;
-    heading: number;
-}
-export interface IScenarioFighter extends IScenarioPlatform {
-    flightPath: IFlightPath;
-}
-export interface IFlightPath {
-    type: TFlightPathType;
-    params?: Record<string, unknown>;
+    velocity?: number;
+    heading?: number;
+    flightPath?: TFlightPathType;
+    data?: Record<string, unknown>;
+    controlSchema?: Record<string, unknown>;
 }
 export type TFlightPathType = 'straight' | 'evasive' | 'memrFringe';
 export interface IScenarioEnvironment {

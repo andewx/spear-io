@@ -127,10 +127,10 @@ export async function listAllPlatforms(): Promise<{ sams: ISAMSystem[]; fighters
 
   for (const file of files) {
     const filePath = path.join(PLATFORMS_DIR, file);
-    if (file.startsWith('sam_')) {
+    if (file.startsWith('sam')) {
       const sam = await readJSON<ISAMSystem>(filePath);
       sams.push(sam);
-    } else if (file.startsWith('fighter_')) {
+    } else if (file.startsWith('fighter')) {
       const fighter = await readJSON<IFighterPlatform>(filePath);
       fighters.push(fighter);
     }
@@ -139,8 +139,9 @@ export async function listAllPlatforms(): Promise<{ sams: ISAMSystem[]; fighters
   return { sams, fighters };
 }
 
+
 export async function deletePlatform(id: string, type: 'sam' | 'fighter'): Promise<boolean> {
-  const prefix = type === 'sam' ? 'sam_' : 'fighter_';
+  const prefix = type === 'sam' ? 'sam' : 'fighter';
   const filePath = path.join(PLATFORMS_DIR, `${prefix}${id}.json`);
   try {
     await deleteFile(filePath);
@@ -163,7 +164,79 @@ export async function loadScenario(id: string): Promise<IScenario | null> {
   const filePath = path.join(SCENARIOS_DIR, `${id}.json`);
   try {
     const data = await readJSON<any>(filePath);
-    // Coerce string numbers to actual numbers
+    
+    // Handle both legacy format (sam/fighter objects) and new format (sams/fighters arrays)
+    let platforms: any;
+    if (data.platforms.sams && data.platforms.fighters) {
+      // New format - load platform configs for each
+      const sams = await Promise.all(
+        data.platforms.sams.map(async (sam: any) => {
+          const config = await loadSAMPlatform(sam.configId);
+          return {
+            id: sam.id,
+            type: 'sam' as const,
+            platform: config,
+            position: {
+              x: Number(sam.position.x),
+              y: Number(sam.position.y),
+            },
+            velocity: Number(sam.velocity || 0),
+            heading: Number(sam.heading || 0),
+          };
+        })
+      );
+      
+      const fighters = await Promise.all(
+        data.platforms.fighters.map(async (fighter: any) => {
+          const config = await loadFighterPlatform(fighter.configId);
+          return {
+            id: fighter.id,
+            type: 'fighter' as const,
+            platform: config,
+            position: {
+              x: Number(fighter.position.x),
+              y: Number(fighter.position.y),
+            },
+            velocity: Number(fighter.velocity || 0.8),
+            heading: Number(fighter.heading || 0),
+            data: fighter.data || (fighter.flightPath ? { flightPath: fighter.flightPath } : {}),
+          };
+        })
+      );
+      
+      platforms = { sams, fighters };
+    } else {
+      // Legacy format - convert to new format
+      const samConfig = await loadSAMPlatform(data.platforms.sam.configId);
+      const fighterConfig = await loadFighterPlatform(data.platforms.fighter.configId);
+      
+      platforms = {
+        sams: [{
+          id: 'sam-1',
+          type: 'sam' as const,
+          platform: samConfig,
+          position: {
+            x: Number(data.platforms.sam.position.x),
+            y: Number(data.platforms.sam.position.y),
+          },
+          velocity: 0,
+          heading: Number(data.platforms.sam.heading),
+        }],
+        fighters: [{
+          id: 'fighter-1',
+          type: 'fighter' as const,
+          platform: fighterConfig,
+          position: {
+            x: Number(data.platforms.fighter.position.x),
+            y: Number(data.platforms.fighter.position.y),
+          },
+          velocity: Number(data.platforms.fighter.velocity || 0.8),
+          heading: Number(data.platforms.fighter.heading),
+          data: data.platforms.fighter.flightPath ? { flightPath: data.platforms.fighter.flightPath.type } : {},
+        }],
+      };
+    }
+    
     return {
       id: data.id,
       name: data.name,
@@ -174,25 +247,7 @@ export async function loadScenario(id: string): Promise<IScenario | null> {
         height: Number(data.grid.height),
         resolution: Number(data.grid.resolution),
       },
-      platforms: {
-        sam: {
-          configId: data.platforms.sam.configId,
-          position: {
-            x: Number(data.platforms.sam.position.x),
-            y: Number(data.platforms.sam.position.y),
-          },
-          heading: Number(data.platforms.sam.heading),
-        },
-        fighter: {
-          configId: data.platforms.fighter.configId,
-          position: {
-            x: Number(data.platforms.fighter.position.x),
-            y: Number(data.platforms.fighter.position.y),
-          },
-          heading: Number(data.platforms.fighter.heading),
-          flightPath: data.platforms.fighter.flightPath,
-        },
-      },
+      platforms,
       environment: {
         precipitation: {
           enabled: Boolean(data.environment.precipitation.enabled),
@@ -206,8 +261,11 @@ export async function loadScenario(id: string): Promise<IScenario | null> {
         },
       },
       precipitationFieldImage: data.precipitationFieldImage,
+      createdAt: data.createdAt ? new Date(data.createdAt) : undefined,
+      updatedAt: data.updatedAt ? new Date(data.updatedAt) : undefined,
     } as IScenario;
-  } catch {
+  } catch (error) {
+    console.error(`Error loading scenario ${id}:`, error);
     return null;
   }
 }

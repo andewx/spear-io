@@ -264,6 +264,12 @@ async function handleRunSimulation(e) {
   await runSimulation();
 }
 
+
+async function handlePauseSimulation(e) {
+  e?.preventDefault();
+  await pauseSimulation();
+}
+
 /**
  * Reset simulation
  */
@@ -328,7 +334,7 @@ bluejs.addBinding('selectScenario', null, handleSelectScenario);
 bluejs.addBinding('generatePrecipitation', null, generatePrecipitation);
 bluejs.addBinding('runSimulation', null, handleRunSimulation);
 bluejs.addBinding('stepSimulation', null, handleStepSimulation);
+bluejs.addBinding('pauseSimulation', null, handlePauseSimulation);
 bluejs.addBinding('resetSimulation', null, handleResetSimulation);
-bluejs.addBinding('distributionToggle', null, distributionToggle);
 bluejs.addBinding('gridWidth',null , scenarioGridValueInputWidth);
 bluejs.addBinding('gridHeight',null , scenarioGridValueInputHeight);

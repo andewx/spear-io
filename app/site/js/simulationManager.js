@@ -32,12 +32,13 @@ class SimulationManager {
       // Get initial state
       const state = await simulationAPI.getState();
       this.state = state;
+
+      console.log('[Simulation] Initial state:', state);
       
       // Update visualization
       if (this.visualization) {
         await this.visualization.setScenario(this.scenario)
         await this.visualization.updateRangeProfile(await simulationAPI.getPrecipRanges());
-        await this.visualization.setScenarioData(state);
         this.visualization.render();
       }
 
@@ -60,17 +61,18 @@ class SimulationManager {
 
     try {
       const response = await simulationAPI.step(this.simulationKey);
-      const { timeElapsed, simulationComplete, state } = response;
+      const {state } = response;
+      this.state = state;
 
-      // Update visualization
-      if (this.visualization && state) {
-        this.visualization.setScenarioData(state);
-      }
-
+        // Update visualization
+        if (this.visualization) {
+            this.visualization.render();
+        }
+  
       // Stop auto-stepping if complete
-      if (simulationComplete) {
+      if (state.isComplete) {
         this.stop();
-        console.log('[Simulation] Complete at t =', timeElapsed, 's');
+        console.log('[Simulation] Complete at t =', state.timeElapsed, 's');
       }
 
       return response;
@@ -129,6 +131,7 @@ class SimulationManager {
     }
     this.isRunning = false;
     this.isPaused = false;
+    displaySimulationResults(this.state);
     console.log('[Simulation] Stopped');
   }
 
@@ -142,11 +145,12 @@ class SimulationManager {
       
       // Get reset state
       const state = await simulationAPI.getState();
-      
+        this.state = state;
+
       // Update visualization
-      if (this.visualization) {
-        this.visualization.setScenarioData(state);
-      }
+      if (this.visualization)   
+      this.visualization.render();
+      
 
       console.log('[Simulation] Reset');
       return state;
@@ -165,21 +169,24 @@ class SimulationManager {
       return null;
     }
 
+    this.setStepDelay(0.5); // Disable auto-stepping
+
     try {
       this.stop(); // Stop any auto-stepping
+      this.isRunning = true;
+      this.isPaused = false;
 
-      const response = await simulationAPI.run(this.simulationKey);
-      
-      // Get final state
-      const state = await simulationAPI.getState();
-      
-      // Update visualization
-      if (this.visualization) {
-        this.visualization.setScenarioData(state);
+      //const response = await simulationAPI.run(this.simulationKey);
+      while (this.isRunning && !this.isPaused) {
+        await this.step();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        
       }
 
-      console.log('[Simulation] Completed:', response);
-      return response;
+
+    displaySimulationResults(this.state);
+    console.log('[Simulation] Run to completion finished');
+
     } catch (error) {
       console.error('[Simulation] Run to completion failed:', error);
       throw error;

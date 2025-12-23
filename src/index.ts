@@ -37,12 +37,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static files from /app/site
 const staticPath = path.join(__dirname, '..', 'app', 'site');
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  process.stdout.write(`${new Date().toISOString()} ${req.method} ${req.url}`);
-  next();
-});
 app.use(express.static(staticPath));
-
 
 
 // ============================================================================

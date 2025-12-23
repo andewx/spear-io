@@ -22,97 +22,144 @@
   <div class="row">
     <div class="col-md-3 mb-3">
       <label class="form-label">Width (km)</label>
-      <input type="number" id="gridWidthInput" bluejs="gridWidth" bluejs-trigger="change" bluejs-binding="gridWidth" name="grid[width]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.grid?.width || 500 %>">
+      <input type="number" id="gridWidthInput" bluejs="gridWidth" bluejs-trigger="change" bluejs-binding="gridWidth" name="grid[width]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.grid?.width || 800 %>">
     </div>
     <div class="col-md-3 mb-3">
       <label class="form-label">Height (km)</label>
-      <input type="number" id="gridHeightInput" bluejs="gridHeight" bluejs-trigger="change" bluejs-binding="gridHeight" name="grid[height]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.grid?.height || 500 %>">
+      <input type="number" id="gridHeightInput" bluejs="gridHeight" bluejs-trigger="change" bluejs-binding="gridHeight" name="grid[height]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.grid?.height || 450 %>">
     </div>
     <div class="col-md-3 mb-3">
       <label class="form-label">Resolution (px/km)</label>
-      <input type="number" name="grid[resolution]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.grid?.resolution || 10 %>" min="1" max="50">
+      <input type="number" name="grid[resolution]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.grid?.resolution || 2 %>" min="1" max="50">
       <small class="form-text text-muted">Higher = more detail</small>
     </div>
     <div class="col-md-3 mb-3">
       <label class="form-label">Time Step (sec)</label>
-      <input type="number" step="0.1" name="timeStep" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.timeStep || 1.0 %>">
+      <input type="number" step="0.1" name="timeStep" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.timeStep || 0.5 %>">
     </div>
   </div>
 
-  <h6 class="text-primary mt-4 mb-3">SAM Platform</h6>
+  <h6 class="text-primary mt-4 mb-3">
+    SAM Systems
+    <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="window.addSAMPlatform()">
+      <i class="bi bi-plus-circle"></i> Add SAM
+    </button>
+  </h6>
   
-  <div class="row">
-    <div class="col-md-12 mb-3">
-      <label class="form-label">SAM System</label>
-      <select name="platforms[sam][configId]" class="form-select bg-dark text-light border-secondary" required>
-        <option value="">Select SAM System...</option>
-        <% if (samSystems && samSystems.length > 0) { %>
-          <% samSystems.forEach(sam => { %>
-            <option value="<%= sam.id %>" <%= scenario.platforms?.sam?.configId === sam.id ? 'selected' : '' %>><%= sam.name %></option>
-          <% }); %>
-        <% } %>
-      </select>
+  <div id="sam-platforms-container">
+    <% const sams = scenario.platforms?.sams || []; %>
+    <% if (sams.length === 0) { sams.push({ id: 'sam-1', configId: '', position: { x: 0, y: 0 }, velocity: 0, heading: 0 }); } %>
+    <% sams.forEach((sam, index) => { %>
+    <div class="form-item border border-secondary rounded p-3 mb-3" id="sam-<%= index %>">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="text-secondary mb-0">SAM System <%= index + 1 %></h6>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="window.removeSAMPlatform(<%= index %>)">
+          <i class="bi bi-trash"></i> Remove
+        </button>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">SAM System</label>
+          <select name="platforms[sams][<%= index %>][id]" class="form-select bg-dark text-light border-secondary" required>
+            <option value="">Select SAM System...</option>
+            <% samSystems.forEach(samSystem => { %>
+              <option value="<%= samSystem.id %>" <%= (sam.configId || sam.platform?.id) === samSystem.id ? 'selected' : '' %>><%= samSystem.name %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Position X (km)</label>
+          <input type="hidden" name="platforms[sams][<%= index %>][type]" value="sam">
+          <input type="number" step="0.1" name="platforms[sams][<%= index %>][position][x]" class="form-control bg-dark text-light border-secondary" required value="<%= sam.position?.x || 0 %>">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Position Y (km)</label>
+          <input type="number" step="0.1" name="platforms[sams][<%= index %>][position][y]" class="form-control bg-dark text-light border-secondary" required value="<%= sam.position?.y || 0 %>">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Heading (deg)</label>
+          <input type="number" step="1" name="platforms[sams][<%= index %>][heading]" class="form-control bg-dark text-light border-secondary" value="<%= sam.heading || 0 %>">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Velocity (Mach)</label>
+          <input type="number" step="0.1" name="platforms[sams][<%= index %>][velocity]" class="form-control bg-dark text-light border-secondary" value="<%= sam.velocity || 0 %>" readonly>
+        </div>
+      </div>
     </div>
+      <% }); %>
   </div>
 
-  <div class="row">
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position X (km)</label>
-      <input type="number" name="platforms[sam][position][x]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.platforms?.sam?.position?.x || 0 %>">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position Y (km)</label>
-      <input type="number" name="platforms[sam][position][y]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.platforms?.sam?.position?.y || 0 %>">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Heading (deg)</label>
-      <input type="number" name="platforms[sam][heading]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.platforms?.sam?.heading || 0 %>">
-    </div>
-  </div>
-
-  <h6 class="text-primary mt-4 mb-3">Fighter Platform</h6>
+  <h6 class="text-primary mt-4 mb-3">
+    Fighter Aircraft
+    <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="window.addFighterPlatform()">
+      <i class="bi bi-plus-circle"></i> Add Fighter
+    </button>
+  </h6>
   
-  <div class="row">
-    <div class="col-md-12 mb-3">
-      <label class="form-label">Fighter Aircraft</label>
-      <select name="platforms[fighter][configId]" class="form-select bg-dark text-light border-secondary" required>
-        <option value="">Select Fighter...</option>
-        <% if (fighters && fighters.length > 0) { %>
-          <% fighters.forEach(fighter => { %>
-            <option value="<%= fighter.id %>" <%= scenario.platforms?.fighter?.configId === fighter.id ? 'selected' : '' %>><%= fighter.type %></option>
-          <% }); %>
-        <% } %>
-      </select>
+  <div id="fighter-platforms-container">
+    <% const fighters_list = scenario.platforms?.fighters || []; %>
+    <% if (fighters_list.length === 0) { fighters_list.push({ id: 'fighter-1', configId: '', position: { x: -150, y: 250 }, velocity: 0.8, heading: 0, flightPath: 'straight' }); } %>
+    <% fighters_list.forEach((fighter, index) => { %>
+    <div class="platform-item border border-secondary rounded p-3 mb-3" id="fighter-<%= index %>">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="text-secondary mb-0">Fighter <%= index + 1 %></h6>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="window.removeFighterPlatform(<%= index %>)">
+          <i class="bi bi-trash"></i> Remove
+        </button>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Fighter Aircraft</label>
+          <select name="platforms[fighters][<%= index %>][id]" class="form-select bg-dark text-light border-secondary" required>
+            <option value="">Select Fighter...</option>
+            <% fighters.forEach(fighterConfig => { %>
+              <option value="<%= fighterConfig.id %>" <%= (fighter.configId || fighter.platform?.id) === fighterConfig.id ? 'selected' : '' %>><%= fighterConfig.type %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Position X (km)</label>
+          <input type="hidden" name="platforms[fighters][<%= index %>][type]" value="fighter">
+          <input type="number" step="0.1" name="platforms[fighters][<%= index %>][position][x]" class="form-control bg-dark text-light border-secondary" required value="<%= fighter.position?.x || -150 %>">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Position Y (km)</label>
+          <input type="number" step="0.1" name="platforms[fighters][<%= index %>][position][y]" class="form-control bg-dark text-light border-secondary" required value="<%= fighter.position?.y || 250 %>">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Heading (deg)</label>
+          <input type="number" step="1" name="platforms[fighters][<%= index %>][heading]" class="form-control bg-dark text-light border-secondary" required value="<%= fighter.heading || 0 %>">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Velocity (Mach)</label>
+          <input type="number" step="0.1" name="platforms[fighters][<%= index %>][velocity]" class="form-control bg-dark text-light border-secondary" value="<%= fighter.velocity || 0.8 %>">
+        </div>
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Flight Path Type</label>
+        <select name="platforms[fighters][<%= index %>][flightPath]" class="form-select bg-dark text-light border-secondary">
+          <option value="straight" <%= (fighter.flightPath || 'straight') === 'straight' ? 'selected' : '' %>>Straight</option>
+          <option value="evasive" <%= (fighter.flightPath || 'straight') === 'evasive' ? 'selected' : '' %>>Evasive</option>
+          <option value="memrFringe" <%= (fighter.flightPath || 'straight') === 'memrFringe' ? 'selected' : '' %>>MEMR Fringe</option>
+        </select>
+      </div>
     </div>
-  </div>
-
-  <div class="row">
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position X (km)</label>
-      <input type="number" name="platforms[fighter][position][x]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.platforms?.fighter?.position?.x || 50 %>">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Position Y (km)</label>
-      <input type="number" name="platforms[fighter][position][y]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.platforms?.fighter?.position?.y || 250 %>">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label">Heading (deg)</label>
-      <input type="number" name="platforms[fighter][heading]" class="form-control bg-dark text-light border-secondary" required value="<%= scenario.platforms?.fighter?.heading || 0 %>">
-    </div>
-  </div>
-
-  <div class="mb-3">
-    <label class="form-label">Flight Path Type</label>
-    <select name="platforms[fighter][flightPath][type]" class="form-select bg-dark text-light border-secondary" required>
-      <option value="straight" <%= scenario.platforms?.fighter?.flightPath?.type === 'straight' ? 'selected' : '' %>>Straight</option>
-      <option value="evasive" <%= scenario.platforms?.fighter?.flightPath?.type === 'evasive' ? 'selected' : '' %>>Evasive</option>
-    </select>
+    <% }); %>
   </div>
 
   <h6 class="text-primary mt-4 mb-3">Environment</h6>
   
   <div class="form-check form-switch mb-3">
-    <input class="form-check-input" type="checkbox" name="environment[precipitation][enabled]" id="precipitationEnabled" <%= scenario.environment?.precipitation?.enabled ? 'checked' : '' %> onchange="togglePrecipitation()">
+    <input class="form-check-input" type="checkbox" name="environment[precipitation][enabled]" id="precipitationEnabled" <%= scenario.environment?.precipitation?.enabled ? 'checked' : '' %> onchange="window.togglePrecipitation()">
     <label class="form-check-label" for="precipitationEnabled">
       Enable Precipitation
     </label>
@@ -122,11 +169,11 @@
     <div class="row">
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Rain Rate (mm/hr)</label>
-        <input type="number" name="environment[precipitation][nominalRainRate]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.nominalRainRate || 25 %>">
+        <input type="number" name="environment[precipitation][nominalRainRate]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.nominalRainRate || 10 %>">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Cell Size (km)</label>
-        <input type="number" name="environment[precipitation][nominalCellSize]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.nominalCellSize || 15 %>">
+        <input type="number" name="environment[precipitation][nominalCellSize]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.nominalCellSize || 12 %>">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Alpha Distribution</label>
@@ -134,7 +181,7 @@
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Coverage (%)</label>
-        <input type="number" step="0.1" name="environment[precipitation][nominalCoverage]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.nominalCoverage || 0.5 %>">
+        <input type="number" step="0.01" name="environment[precipitation][nominalCoverage]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.nominalCoverage || 0.35 %>">
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Max Rain Rate Cap (mm/hr)</label>
@@ -143,10 +190,12 @@
       <div class="col-md-4 mb-3">
         <label class="form-label">Sigmoid K (Compression)</label>
         <input type="number" step="0.1" name="environment[precipitation][sigmoidK]" class="form-control bg-dark text-light border-secondary" value="<%= scenario.environment?.precipitation?.sigmoidK || 10 %>">
+        <input type="hidden" name="precipitationFieldImage" value="<%= scenario.precipitationFieldImage || '' %>">
+        <input type="hidden" name="precipitationFieldOverlay" value="<%=scenario.precipitationFieldOverlay || ''%>">
       </div>
+      
     </div>
   </div>
-
 
   <div class="d-flex gap-2 mt-4">
     <button type="submit" class="btn btn-primary flex-fill">Update Scenario</button>
@@ -155,5 +204,14 @@
 </form>
 
 <script>
-
+// Toggle precipitation fields visibility
+window.togglePrecipitation = function() {
+  const enabled = document.getElementById('precipitationEnabled').checked;
+  const fields = document.getElementById('precipitationFields');
+  if (enabled) {
+    fields.classList.remove('d-none');
+  } else {
+    fields.classList.add('d-none');
+  }
+};
 </script>

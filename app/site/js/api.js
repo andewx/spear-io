@@ -42,7 +42,7 @@ const platformAPI = {
     return fetchAPI('/platforms');
   },
 
-  /**
+  /** 
    * Get specific platform
    */
   async get(type, id) {
@@ -196,3 +196,9 @@ const simulationAPI = {
   },
 };
 
+// ============================================================================
+// Export to global scope for browser access
+// ============================================================================
+window.platformAPI = platformAPI;
+window.scenarioAPI = scenarioAPI;
+window.simulationAPI = simulationAPI;

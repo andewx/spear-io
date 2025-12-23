@@ -15,13 +15,17 @@ export class Fighter {
     heading;
     launchedHARM = false;
     launchTime = null;
-    missilesRemaining = 1; // Assume 1 HARM for now
+    missilesRemaining = 2; // Assume 1 HARM for now
     state;
     maneuvers;
-    constructor(platform, position, heading) {
-        this.id = platform.id;
-        this.type = platform.type;
-        this.velocity = platform.velocity;
+    constructor(fighter, position, heading) {
+        const platform = fighter.platform;
+        if (!platform) {
+            throw new Error(`Invalid fighter platform data for fighter ID: ${fighter.id}`);
+        }
+        this.id = fighter.id;
+        this.type = fighter.type;
+        this.velocity = fighter.velocity;
         this.position = position;
         this.heading = heading;
         this.rcs = platform.rcs;
@@ -56,6 +60,16 @@ export class Fighter {
         const velocityMs = this.velocity * speedOfSound;
         return velocityMs / 1000; // km/s
     }
+    getAzimuthToTarget(targetPos) {
+        const deltaX = targetPos.x - this.position.x;
+        const deltaY = targetPos.y - this.position.y;
+        const azimuthRad = Math.atan2(deltaY, deltaX);
+        let azimuthDeg = azimuthRad * (180 / Math.PI);
+        if (azimuthDeg < 0) {
+            azimuthDeg += 360;
+        }
+        return azimuthDeg;
+    }
     /**
      * Get RCS based on aspect angle from observer
      *
@@ -81,7 +95,7 @@ export class Fighter {
     getAzimuthFromSAM(samPosition) {
         const dx = this.position.x - samPosition.x;
         const dy = this.position.y - samPosition.y;
-        return (Math.atan2(dy, dx) * 180) / Math.PI;
+        return (Math.atan2(dy, dx));
     }
     /**
      * Get RCS from position relative to observer
@@ -95,8 +109,8 @@ export class Fighter {
         // Vector from fighter to observer
         const dx = observerPos.x - fighterPos.x;
         const dy = observerPos.y - fighterPos.y;
-        // Angle to observer (in degrees)
-        const angleToObserver = (Math.atan2(dy, dx) * 180) / Math.PI;
+        // Angle to observer (in radians)
+        const angleToObserver = (Math.atan2(dy, dx));
         // Relative aspect (angle difference from heading)
         const relativeAspect = angleToObserver - fighterHeadingDeg;
         return this.getRCSAtAspect(relativeAspect);
