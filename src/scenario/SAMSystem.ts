@@ -52,7 +52,7 @@ export class SAMSystem {
   public readonly nominalRange: number;
   public readonly nominalRangesAzimuth:Array<number>= []; // Precomputed nominal ranges over azimuth
   public readonly precipRangesAzimuth:Array<number>= []; // Precomputed ranges with precipitation attenuation
-  public readonly numAzimuths = 108; // e.g., 2.5 degree increments over 360 degrees
+  public readonly numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
 
   //TODO: Move these properties and others to ISAMSystem interface and store with platform
   public launchIntervalSec: number = 5; // seconds between launches

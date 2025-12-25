@@ -1,6 +1,10 @@
   <!-- Full-Screen Canvas -->
   <div class="fullscreen-canvas">
     <canvas id="radarCanvas"></canvas>
+    <!-- Edit Mode Indicator -->
+    <div id="editModeIndicator" class="edit-mode-indicator d-none">
+      ✏️ EDIT MODE - Hold SHIFT to enter
+    </div>
   </div>
 
     <!-- Glass-Pane Header -->
@@ -110,6 +114,37 @@
     <div class="panel-header">
       <i class="bi bi-bar-chart-fill"></i>
       <span>Results</span>
+    </div>
+    
+    <!-- Precipitation Image Type Toggle -->
+    <div class="control-group" style="padding: 0.5rem 1rem;">
+      <label class="control-label" style="font-size: 0.75rem; margin-bottom: 0.25rem;">Precip Display</label>
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button type="button" 
+                bluejs="btn-precip-normal"
+                bluejs-trigger="click"
+                bluejs-binding="setPrecipImageType"
+                data-image-type="normal"
+                class="btn btn-outline-primary active">
+          Normal
+        </button>
+        <button type="button" 
+                bluejs="btn-precip-overlay"
+                bluejs-trigger="click"
+                bluejs-binding="setPrecipImageType"
+                data-image-type="overlay"
+                class="btn btn-outline-primary">
+          Overlay
+        </button>
+        <button type="button" 
+                bluejs="btn-precip-jet"
+                bluejs-trigger="click"
+                bluejs-binding="setPrecipImageType"
+                data-image-type="jet"
+                class="btn btn-outline-primary">
+          Jet
+        </button>
+      </div>
     </div>
     
     <div class="panel-content">

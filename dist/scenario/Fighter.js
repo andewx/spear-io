@@ -12,7 +12,7 @@ export class Fighter {
     harmRange;
     launchPreference;
     memrRatio;
-    heading;
+    heading; // assume this is always in radians for internal calculations
     launchedHARM = false;
     launchTime = null;
     missilesRemaining = 2; // Assume 1 HARM for now

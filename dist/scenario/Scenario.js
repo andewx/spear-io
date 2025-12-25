@@ -85,7 +85,7 @@ export class Scenario {
             try {
                 const fighter = new Fighter(fighterPlatformData, fighterPlatformData.position, fighterPlatformData.heading);
                 fighter.id = fighterId;
-                fighter.heading = fighterPlatformData.heading * (Math.PI / 180); // Convert to radians
+                fighter.heading = fighterPlatformData.heading; // Convert to radians
                 fighterPlatforms.push(fighter);
                 console.log(`Created Fighter ID: ${fighter.id} at position (${fighter.position.x}, ${fighter.position.y}) with heading ${fighter.heading} radians`);
             }

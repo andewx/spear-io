@@ -80,6 +80,7 @@ export interface IMissileState {
 }
 export interface IScenario {
     id: string;
+    configId?: string;
     name: string;
     description?: string;
     grid: IGridBounds;
@@ -88,6 +89,7 @@ export interface IScenario {
     environment: IScenarioEnvironment;
     precipitationFieldImage?: string;
     precipitationFieldOverlay?: string;
+    precipitationFieldJet?: string;
     createdAt?: Date;
     updatedAt?: Date;
     latLongOrigin?: IScenarioLatLong;

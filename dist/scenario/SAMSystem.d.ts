@@ -35,7 +35,7 @@ export declare class SAMSystem {
     readonly nominalRange: number;
     readonly nominalRangesAzimuth: Array<number>;
     readonly precipRangesAzimuth: Array<number>;
-    readonly numAzimuths = 108;
+    readonly numAzimuths = 216;
     launchIntervalSec: number;
     position: IPosition2D;
     status: SAMStatus;

@@ -24,7 +24,7 @@ export class SAMSystem {
     nominalRange;
     nominalRangesAzimuth = []; // Precomputed nominal ranges over azimuth
     precipRangesAzimuth = []; // Precomputed ranges with precipitation attenuation
-    numAzimuths = 108; // e.g., 2.5 degree increments over 360 degrees
+    numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
     //TODO: Move these properties and others to ISAMSystem interface and store with platform
     launchIntervalSec = 5; // seconds between launches
     position = { x: 0, y: 0 }; // SAM position in km

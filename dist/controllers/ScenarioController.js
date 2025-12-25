@@ -71,16 +71,17 @@ export class ScenarioController {
             const scenario = await this.parseScenarioFromFormData(data);
             //Load platforms for each platform entry and attach the object to the platform
             for (const sam of scenario.platforms.sams) {
-                const samConfig = await storage.loadSAMPlatform(sam.configId);
+                const samConfig = await storage.loadSAMPlatform(sam.id);
                 if (!samConfig) {
-                    throw new Error(`SAM platform not found: ${sam.configId}`);
+                    throw new Error(`SAM platform not found: ${sam.id}`);
                 }
                 sam.platform = samConfig;
             }
             for (const fighter of scenario.platforms.fighters) {
-                const fighterConfig = await storage.loadFighterPlatform(fighter.configId);
+                fighter.heading = Math.PI / 180 * fighter.heading; // Convert to radians
+                const fighterConfig = await storage.loadFighterPlatform(fighter.id);
                 if (!fighterConfig) {
-                    throw new Error(`Fighter platform not found: ${fighter.configId}`);
+                    throw new Error(`Fighter platform not found: ${fighter.id}`);
                 }
                 fighter.platform = fighterConfig;
             }
@@ -113,23 +114,21 @@ export class ScenarioController {
             const scenario = await this.parseScenarioFromFormData(data);
             //Load platforms for each platform entry and attach the object to the platform
             for (const sam of scenario.platforms.sams) {
-                const samConfig = await storage.loadSAMPlatform(sam.configId);
+                const samConfig = await storage.loadSAMPlatform(sam.id);
                 if (!samConfig) {
-                    throw new Error(`SAM platform not found: ${sam.configId}`);
+                    throw new Error(`SAM platform not found: ${sam.id}`);
                 }
                 sam.platform = samConfig;
             }
             for (const fighter of scenario.platforms.fighters) {
-                const fighterConfig = await storage.loadFighterPlatform(fighter.configId);
+                const fighterConfig = await storage.loadFighterPlatform(fighter.id);
                 if (!fighterConfig) {
-                    throw new Error(`Fighter platform not found: ${fighter.configId}`);
+                    throw new Error(`Fighter platform not found: ${fighter.id}`);
                 }
                 fighter.platform = fighterConfig;
             }
             // Ensure ID matches and update timestamp
-            scenario.id = id;
             scenario.updatedAt = new Date();
-            console.log('Updated scenario:', JSON.stringify(scenario, null, 2));
             await storage.saveScenario(scenario);
             const response = {
                 success: true,
@@ -227,7 +226,7 @@ export class ScenarioController {
                             y: parseFloat(fighterData.position?.y || 0),
                         },
                         velocity: parseFloat(fighterData.velocity || 0.8),
-                        heading: parseFloat(fighterData.heading || 0),
+                        heading: parseFloat(fighterData.heading || 180),
                         flightPath: fighterData.flightPath || 'straight',
                     });
                 }
@@ -241,6 +240,7 @@ export class ScenarioController {
             name: data.name,
             precipitationFieldImage: data.precipitationFieldImage || undefined,
             precipitationFieldOverlay: data.precipitationFieldOverlay || undefined,
+            precipitationFieldJet: data.precipitationFieldJet || undefined,
             description: data.description,
             grid: {
                 width: parseFloat(data.grid?.width || 800),

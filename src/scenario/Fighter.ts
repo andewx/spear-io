@@ -21,7 +21,7 @@ export class Fighter {
   public readonly harmRange: number;
   public readonly launchPreference: IFighterPlatform['harmParams']['launchPreference'];
   public readonly memrRatio?: number;
-  public heading: number;
+  public heading: number;   // assume this is always in radians for internal calculations
   public launchedHARM: boolean = false;
   public launchTime: number | null = null;
   public missilesRemaining: number = 2; // Assume 1 HARM for now

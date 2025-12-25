@@ -14,6 +14,7 @@ export declare class SyntheticController {
      * Pixel luminance represents rain rate (0-100 mm/hr mapped to 0-255)
      */
     private generateFieldImage;
+    private generateJETColormap;
     /**
      * Generate high-pass filtered version of precipitation field for overlay
      * High-pass filter enhances edges and removes smooth gradients

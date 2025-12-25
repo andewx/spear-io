@@ -11,10 +11,18 @@ class RadarVisualization {
     this.fighter = null;
     this.results = null;
     this.precipitationImage = null;
+    this.precipImageType = 'normal'; // 'normal', 'overlay', or 'jet'
     this.rangeData = null;
     this.currentZoom = 1.0;
     this.panOffset = { x: 0, y: 0 };
     this.maxZoom = 5.0;
+    
+    // Fighter interaction state
+    this.selectedFighter = null;
+    this.selectedFighterIndex = -1;
+    this.isDraggingFighter = false;
+    this.isAdjustingHeading = false;
+    this.interactionMode = 'pan'; // 'pan' or 'edit'
     
     // Aspect ratio constant (16:9)
     this.ASPECT_RATIO = 16 / 9;
@@ -42,7 +50,7 @@ class RadarVisualization {
 
     const ctx = this.ctx;
     // Example: Draw range profile as a simple line graph at the bottom of the canvas
-    const padding = 20;
+    const padding = 0;
     const graphHeight = 100;
     const graphWidth = this.canvas.width - 2 * padding;
 
@@ -134,21 +142,50 @@ class RadarVisualization {
   
   /**
    * Load precipitation field JPEG image
+   * @param {string} filename - Base filename (without suffix)
+   * @param {string} imageType - 'normal', 'overlay', or 'jet'
    */
-  loadPrecipitationImage(filename) {
-    console.log('Loading precipitation image:', filename);
+  loadPrecipitationImage(filename, imageType = null) {
+    if (imageType) {
+      this.precipImageType = imageType;
+    }
+    
+    // Get the base filename without extension and any existing suffix
+    let baseName = filename.replace(/\.(jpg|jpeg|png)$/i, '');
+    baseName = baseName.replace(/_(normal|overlay|jet)$/, '');
+    
+    // Construct filename with appropriate suffix
+    let targetFilename;
+    if (this.precipImageType === 'overlay') {
+      targetFilename = this.scenario.precipitationFieldOverlay;
+    } else if (this.precipImageType === 'jet') {
+      targetFilename = this.scenario.precipitationFieldJet;
+    } else {
+      targetFilename = this.scenario.precipitationFieldImage;
+    }
+    
+    console.log('Loading precipitation image:', targetFilename, 'type:', this.precipImageType);
     const img = new Image();
     img.onload = () => {
-      console.log('Precipitation image loaded:', filename);
+      console.log('Precipitation image loaded:', targetFilename);
       this.precipitationImage = img;
       this.render();
     };
     img.onerror = () => {
-      console.error('Failed to load precipitation image:', filename);
+      console.error('Failed to load precipitation image:', targetFilename);
       this.precipitationImage = null;
       this.render();
     };
-    img.src = `/api/synthetic/precipitation/${filename}`;
+    img.src = `/api/synthetic/precipitation/${targetFilename}`;
+  }
+  
+  /**
+   * Set precipitation image type and reload
+   */
+  setPrecipImageType(imageType) {
+    if (!this.scenario || !this.scenario.precipitationFieldImage) return;
+    this.precipImageType = imageType;
+    this.loadPrecipitationImage(this.scenario.precipitationFieldImage, imageType);
   }
 
   setSAM(sam) {
@@ -172,6 +209,7 @@ class RadarVisualization {
   gridToCanvas(x, y) {
     if (!this.scenario) return { x: 0, y: 0 };
     
+   
     const padding = 0;
     const availableWidth = this.canvas.width - 2 * padding;
     const availableHeight = this.canvas.height - 2 * padding;
@@ -207,6 +245,87 @@ class RadarVisualization {
     const scale = Math.min(scaleX, scaleY);
 
     return km * scale;
+  }
+
+  /**
+   * Convert canvas pixels to grid coordinates (km)
+   * Inverse of gridToCanvas, accounting for zoom and pan
+   */
+  canvasToGrid(canvasX, canvasY) {
+    //if (!this.scenario) return { x: 0, y: 0 };
+    
+
+    // Reverse zoom and pan transformations
+    const x = (canvasX - this.panOffset.x) / this.currentZoom;
+    const y = (canvasY - this.panOffset.y) / this.currentZoom;
+    
+    const padding = 0;
+    const availableWidth = this.canvas.width - 2 * padding;
+    const availableHeight = this.canvas.height - 2 * padding;
+    
+    const scaleX = availableWidth / this.scenario.grid.width;
+    const scaleY = availableHeight / this.scenario.grid.height;
+    const scale = Math.min(scaleX, scaleY);
+
+    const centerX = (this.scenario.grid.width / 2) * scale;
+    const centerY = (this.scenario.grid.height / 2) * scale;
+    
+    return {
+      x: (x - padding - centerX) / scale,
+      y: -(y - padding - centerY) / scale, // Flip Y axis back
+    };
+  }
+
+  /**
+   * Check if mouse click is on a fighter
+   * Returns {fighter, index} or null
+   */
+  getFighterAtPosition(canvasX, canvasY) {
+    if (!appState.simulationManager.state.fighters) return null;
+    
+    const fighters = appState.simulationManager.state.fighters;
+    const clickRadius = 15; // pixels (in screen space)
+    
+    for (let i = 0; i < fighters.length; i++) {
+      const fighter = fighters[i];
+      const pos = this.gridToCanvas(fighter.position.x, fighter.position.y);
+      
+      // Apply zoom/pan transformation to fighter position to get screen coordinates
+      const screenX = pos.x * this.currentZoom + this.panOffset.x;
+      const screenY = pos.y * this.currentZoom + this.panOffset.y;
+
+      
+      // Calculate distance in screen space
+      const dx = canvasX - screenX;
+      const dy = canvasY - screenY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= clickRadius * this.currentZoom) {
+        return { fighter, index: i};
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if click is on heading knob
+   */
+  isClickOnHeadingKnob(canvasX, canvasY) {
+    if (!this.selectedFighter) return false;
+    
+    const pos = this.gridToCanvas(this.selectedFighter.position.x, this.selectedFighter.position.y);
+    
+    // Apply zoom/pan transformation to get screen coordinates
+    const screenX = pos.x * this.currentZoom + this.panOffset.x;
+    const screenY = pos.y * this.currentZoom + this.panOffset.y;
+    
+    const knobRadius = 30 * this.currentZoom;
+    const dx = canvasX - screenX;
+    const dy = canvasY - screenY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    return distance >= knobRadius - 10 * this.currentZoom && distance <= knobRadius + 10 * this.currentZoom;
   }
 
   /**
@@ -401,6 +520,8 @@ class RadarVisualization {
 
   }
 
+
+
   /**
    * Render precipitation field image as background
    * Image luminance represents rain rate (0-100 mm/hr)
@@ -468,11 +589,26 @@ class RadarVisualization {
       return;
     }
 
+    for(let i = 0; i < appState.simulationManager.state.fighters.length; i++) {
+        const fighter = appState.simulationManager.state.fighters[i];
+        const isSelected = this.selectedFighterIndex === i;
+        let position = fighter.position;
+        let headingDegrees = fighter.heading * 180 / Math.PI;
+        let heading = fighter.heading;
+        if(isSelected){
+          position = this.selectedFighter.position;
+          headingDegrees = this.selectedFighter.heading * 180 / Math.PI;
+          heading = this.selectedFighter.heading;
+             console.log(`Rendering Fighter at Degrees: ${headingDegrees} Radians: ${heading}`);
+        }
 
-    for(const fighter of appState.simulationManager.state.fighters) {
-        // Use simulation state position if available, otherwise scenario initial position
-        const position = fighter.position;
-        const heading = fighter.heading || 0;
+    
+     
+
+        if (!position) {
+          console.warn('Fighter position not found in scenario');
+          return;
+        } 
 
         
         const pos = this.gridToCanvas(position.x, position.y);
@@ -480,20 +616,82 @@ class RadarVisualization {
 
         //Notes: Later draw SVG depending on fighter state (normal, launching HARM, damaged, etc)
         
-        // Fighter marker (blue circle)
-        ctx.fillStyle = '#195abbd4';
+        // Fighter marker (blue circle) - highlight if selected
+        ctx.fillStyle = isSelected ? '#3a7ae0' : '#195abbd4';
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, isSelected ? 14 : 12, 0, Math.PI * 2);
         ctx.fill();
         
+        // Add selection ring if selected
+        if (isSelected) {
+          ctx.strokeStyle = '#3a7ae0';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, 18, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        
+        // Draw heading indicator (heading is in radians)
+        // Canvas Y increases downward, so negate sin to match standard coordinate system
+        const indicatorLength = 20;
+        ctx.strokeStyle = isSelected ? '#ffffff' : '#aaaaaa';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        ctx.lineTo(
+          pos.x + Math.cos(heading) * indicatorLength,
+          pos.y - Math.sin(heading) * indicatorLength
+        );
+        ctx.stroke();
+        
         // Label
-        ctx.fillStyle = '#214f94ff';
+        ctx.fillStyle = isSelected ? '#ffffff' : '#214f94ff';
         ctx.font = '12px Sans-Serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Fighter', pos.x, pos.y + 25);
+        ctx.fillText('Fighter', pos.x, pos.y + 30);
+        
+        // Render heading control knob if selected
+        if (isSelected && this.interactionMode === 'edit') {
+          this.renderHeadingKnob(pos.x, pos.y, headingDegrees);
+        }
     }
     
 
+  }
+
+  /**
+   * Render heading control knob for selected fighter
+   * @param {number} headingDegrees - Heading in degrees for display
+   */
+  renderHeadingKnob(centerX, centerY, headingDegrees) {
+    const ctx = this.ctx;
+    const knobRadius = 30;
+    
+    // Draw control circle
+    ctx.strokeStyle = '#3a7ae0';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, knobRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Draw heading handle (convert degrees to radians)
+    // Canvas Y increases downward, so negate sin to match standard coordinate system
+    const headingRadians = headingDegrees * Math.PI / 180;
+    const handleX = centerX + Math.cos(headingRadians) * knobRadius;
+    const handleY = centerY - Math.sin(headingRadians) * knobRadius;
+    
+    ctx.fillStyle = '#3a7ae0';
+    ctx.beginPath();
+    ctx.arc(handleX, handleY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw heading value
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(headingDegrees)}°`, centerX, centerY - knobRadius - 10);
   }
 
   renderMissile(missile) {
@@ -501,7 +699,7 @@ class RadarVisualization {
     const ctx = this.ctx;
     
     // Determine color based on missile type
-    const color = missile.type === 'sam' ? '#ffb488a9' : '#ac88ffb6'; // Red for SAM, green for HARM
+    const color = missile.launchedBy === 'sam' ? '#c88964d6' : '#0da9e2d8'; // Red for SAM, green for HARM
     
     // Draw missile as small diamond
     ctx.fillStyle = color;

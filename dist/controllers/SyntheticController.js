@@ -48,10 +48,11 @@ export class SyntheticController {
                 return;
             }
             // Generate precipitation field
-            const { imageFilename, overlayFilename } = await this.generateFieldImage(scenario);
+            const { imageFilename, overlayFilename, jetFilename } = await this.generateFieldImage(scenario);
             // Update scenario with image filename
             scenario.precipitationFieldImage = imageFilename;
             scenario.precipitationFieldOverlay = overlayFilename;
+            scenario.precipitationFieldJet = jetFilename;
             await storage.saveScenario(scenario);
             const response = {
                 success: true,
@@ -163,8 +164,59 @@ export class SyntheticController {
         // Generate high-pass filtered version for overlay visualization
         const overlayFilename = await this.generateHighPassOverlay(blurredField, imageWidth, imageHeight, scenario.id);
         process.stdout.write(`Generated high-pass overlay: ${overlayFilename}\n`);
-        const filenames = { imageFilename, overlayFilename };
+        const jetFilename = await this.generateJETColormap(imageData, imageFilename);
+        process.stdout.write(`Generated JET colormap: ${jetFilename}\n`);
+        const filenames = { imageFilename, overlayFilename, jetFilename };
         return filenames;
+    }
+    async generateJETColormap(originalImageData, imageFilename) {
+        const width = originalImageData.width;
+        const height = originalImageData.height;
+        // Create canvas for JET colormap
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(width, height);
+        // Apply JET colormap
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const luminance = originalImageData.data[idx]; // Grayscale value
+                // Map luminance to JET colormap
+                let r = 0, g = 0, b = 0;
+                const value = luminance / 255.0;
+                if (value < 0.25) {
+                    r = 0;
+                    g = Math.floor(4 * value * 255);
+                    b = 255;
+                }
+                else if (value < 0.5) {
+                    r = 0;
+                    g = 255;
+                    b = Math.floor((1 - 4 * (value - 0.25)) * 255);
+                }
+                else if (value < 0.75) {
+                    r = Math.floor(4 * (value - 0.5) * 255);
+                    g = 255;
+                    b = 0;
+                }
+                else {
+                    r = 255;
+                    g = Math.floor((1 - 4 * (value - 0.75)) * 255);
+                    b = 0;
+                }
+                imageData.data[idx] = r;
+                imageData.data[idx + 1] = g;
+                imageData.data[idx + 2] = b;
+                imageData.data[idx + 3] = 255; // A
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        // Save JET colormap image
+        const jetFilename = `precip_jet_${imageFilename}`;
+        const jetPath = path.join(PRECIPITATION_DIR, jetFilename);
+        const buffer = canvas.toBuffer('image/png');
+        await fs.writeFile(jetPath, buffer);
+        return jetFilename;
     }
     /**
      * Generate high-pass filtered version of precipitation field for overlay

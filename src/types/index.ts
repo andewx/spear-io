@@ -104,6 +104,7 @@ export interface IMissileState {
 
 export interface IScenario {
   id: string;
+  configId?: string; // Optional reference to saved scenario config
   name: string;
   description?: string;
   grid: IGridBounds;
@@ -112,6 +113,7 @@ export interface IScenario {
   environment: IScenarioEnvironment;
   precipitationFieldImage?: string; // Filename of generated precipitation field JPEG
   precipitationFieldOverlay?: string; // Filename of generated precipitation field overlay PNG
+  precipitationFieldJet?: string; // Filename of generated precipitation field JET colormap PNG
   createdAt?: Date;
   updatedAt?: Date;
   latLongOrigin?: IScenarioLatLong; // Optional lat/long origin for georeferencing

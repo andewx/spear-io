@@ -50,6 +50,8 @@ class SimulationManager {
     }
   }
 
+
+
   /**
    * Step simulation forward by one time step
    */
@@ -179,7 +181,7 @@ class SimulationManager {
       //const response = await simulationAPI.run(this.simulationKey);
       while (this.isRunning && !this.isPaused) {
         await this.step();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 50));
         
       }
 

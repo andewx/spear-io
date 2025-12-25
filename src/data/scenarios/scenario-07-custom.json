@@ -1,7 +1,7 @@
 {
   "id": "scenario-07-custom",
   "name": "Multiple Fighter F16 vs. SAM",
-  "precipitationFieldImage": "precip_scenario-07-custom_1766522173219.png",
+  "precipitationFieldImage": "precip_scenario-07-custom_1766555754376.png",
   "description": "Multiple Fighter Configuration",
   "grid": {
     "width": 800,
@@ -58,11 +58,11 @@
           }
         },
         "position": {
-          "x": 40,
-          "y": 250
+          "x": -196.9,
+          "y": -9.4
         },
-        "velocity": 0.9,
-        "heading": -90,
+        "velocity": 2,
+        "heading": 1.5098400886365795,
         "flightPath": "straight"
       },
       {
@@ -87,11 +87,11 @@
           }
         },
         "position": {
-          "x": -80,
-          "y": 5
+          "x": -28.8,
+          "y": 27.2
         },
         "velocity": 0.8,
-        "heading": 0,
+        "heading": 5.459754515801771,
         "flightPath": "straight"
       }
     ]
@@ -107,5 +107,5 @@
       "sigmoidK": 10
     }
   },
-  "updatedAt": "2025-12-23T20:49:57.730Z"
+  "updatedAt": "2025-12-24T06:24:02.854Z"
 }
