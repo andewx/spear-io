@@ -30,10 +30,13 @@ interface IPulseIntegrationMode {
   mode: TPulseIntegrationMode;
 }
 
-type TrackingStatus = {
+type Track = {
+  id: string;
+  acquisitionTime: number;
+  distance: number;
+  azimuth: number;
   status: 'tracking' | 'not_tracking' | 'lost';
   timeElapsedTracking: number;
-  preferredTrackingMode: 'auto' | 'manual';
 }
 
 export class SAMSystem {
@@ -41,11 +44,7 @@ export class SAMSystem {
   public readonly name: string;
   public readonly properties: ISAMSystem;
   public pulseMode: IPulseIntegrationMode;
-  public trackingStatus: TrackingStatus = {
-    status: 'not_tracking',
-    timeElapsedTracking: 0,
-    preferredTrackingMode: 'auto',
-  };
+  public trackedTargets: Map<string, Track> = new Map();
   public readonly radar: Radar;
   public state: 'active' | 'destroyed';
   public readonly trackingRadar: Radar;
@@ -53,7 +52,7 @@ export class SAMSystem {
   public readonly nominalRange: number;
   public readonly nominalRangesAzimuth:Array<number>= []; // Precomputed nominal ranges over azimuth
   public readonly precipRangesAzimuth:Array<number>= []; // Precomputed ranges with precipitation attenuation
-  public readonly numAzimuths = 108; // e.g., 2.5 degree increments over 360 degrees
+  public readonly numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
 
   //TODO: Move these properties and others to ISAMSystem interface and store with platform
   public launchIntervalSec: number = 5; // seconds between launches
@@ -113,6 +112,35 @@ export class SAMSystem {
 
   }
 
+
+  getRangeAtAzimuth(azimuthDeg:number):number {
+    const azimuths = this.getDetectionRanges();
+    const numAzimuths = azimuths.length;
+    const azimuthIndex = Math.round(((azimuthDeg % 360) / 360) * numAzimuths) % numAzimuths;
+    return azimuths[azimuthIndex];
+  }
+
+
+  getDetectionRanges():Array<number> {
+      const adjustedRanges = this.precipRangesAzimuth.map((nominalRange) => {
+      const detectionRange = this.radar.calculateDetectionRange(1.0, 1.0, nominalRange);
+      return detectionRange;
+    });
+
+    return adjustedRanges;
+  }
+
+  getAzimuthToTarget(targetPosition: IPosition2D): number {
+    const deltaX = targetPosition.x - this.position.x;
+    const deltaY = targetPosition.y - this.position.y;
+    const azimuthRad = Math.atan2(deltaY, deltaX);
+    let azimuthDeg = azimuthRad * (180 / Math.PI);
+    if (azimuthDeg < 0) {
+      azimuthDeg += 360;
+    }
+    return azimuthDeg;
+  }
+
   async initPrecipitationField(scenario: IScenario): Promise<void> {
     if(scenario.environment.precipitation.enabled && scenario.precipitationFieldImage){
       await this.radar.loadImageDataFromScenario(scenario);
@@ -129,8 +157,8 @@ export class SAMSystem {
   }
 
 
-  getTrackingStatus(): string {
-    return this.trackingStatus.status;
+  getTrackings(): Map<string, Track> {
+    return this.trackedTargets;
   }
 
   /**
@@ -146,7 +174,7 @@ export class SAMSystem {
 
   // Calculates nominal detection ranges over azimuth without precipitation attenuation
   calculateDetectionRanges(scenario: IScenario): number {
-    const samPosition = scenario.platforms.sam.position;
+    const samPosition = this.position;
     for (let i = 0; i < this.numAzimuths; i++) {
       const azimuthDeg = (i * 360) / this.numAzimuths;
       const range = this.radar.calculateDetectionRange(
@@ -164,7 +192,7 @@ export class SAMSystem {
    * use radar.calculateDetectionRange(rcs, range) when applying a specific RCS
    */
   calculateDetectionRangesWithSampling(scenario: IScenario): number {
-    const samPosition = scenario.platforms.sam.position;
+    const samPosition = this.position;
     for (let i = 0; i < this.numAzimuths; i++) {
       const azimuthDeg = ( 360/ this.numAzimuths)*i;
       const range = this.radar.calculateDetectionRangeWithPrecipitationFieldSampling(

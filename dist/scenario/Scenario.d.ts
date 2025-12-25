@@ -4,7 +4,7 @@
  */
 import { SAMSystem } from './SAMSystem.js';
 import { Fighter } from './Fighter.js';
-import { IScenario, IPosition2D, IEngagementResult } from '../types/index.js';
+import { IScenario, IPosition2D, IEngagementResult, IScenarioPlatform } from '../types/index.js';
 type TMissile = {
     position: IPosition2D;
     velocity: number;
@@ -21,95 +21,86 @@ export declare class Scenario {
     readonly timeStep: number;
     timeElapsed: number;
     readonly scenario: IScenario;
-    readonly samSystem: SAMSystem;
-    readonly fighter: Fighter;
+    readonly sams: IScenarioPlatform[];
+    readonly fighters: IScenarioPlatform[];
     private missiles;
     private isEngagementComplete;
+    scenarioSams: SAMSystem[];
+    scenarioFighters: Fighter[];
     /**
      * Private constructor - use static create() method instead
      * This enforces async initialization through the factory pattern
      */
-    constructor(scenario: IScenario, samSystem: SAMSystem, fighter: Fighter, timeStep: number);
+    constructor(scenario: IScenario, sams: SAMSystem[], fighters: Fighter[], timeStep: number);
     /**
      * Static factory method for async initialization
      * Use this instead of constructor: const scenario = await Scenario.create(...)
+     *
+     * Supports both legacy single-platform format and new array format
      */
     static create(scenario: IScenario, timeStep?: number): Promise<Scenario>;
     engagementComplete(): boolean;
+    updateSAMTrackingStatus(): void;
+    SAMDetectionAndEngagementLogic(): void;
+    fighterLaunchHARMLogic(): void;
+    /**
+     * Update missile tracking status and heading based on target tracking
+     */
+    private updateMissileTracking;
+    /**
+     * Update missile positions based on velocity and heading
+     */
+    private updateMissilePositions;
+    /**
+     * Update fighter evasive maneuvers (6G max)
+     */
+    private updateFighterManeuvers;
+    /**
+     * Update fighter positions based on velocity and heading
+     */
+    private updateFighterPositions;
+    /**
+     * Evaluate missile kill criteria and update status
+     */
+    private evaluateKillCriteria;
+    /**
+     * Check if simulation is complete
+     */
+    private checkSimulationComplete;
+    /**
+     * Advance scenario by time step and update platform states
+     */
     advanceSimulationTimeStep(): boolean;
     resetScenario(): void;
     getTimeElapsed(): number;
     getMissiles(): Array<TMissile>;
     engagementResult(): IEngagementResult;
+    wrapToPi(a: number): number;
+    updateHeading(prev: number, current: number): number;
     /**
      * Apply RCS and Pulse Integration to array and return array
      * @param azimuthDeg
      * @param rcs
      * @returns
      */
-    getDetectionRanges(ranges: Array<number>, rcs: number, numPulses: number, pulse_mode: string): Array<number>;
-    getNominalRanges(): Array<number>;
-    getPrecipitationRanges(): Array<number>;
-    /**
-     * Calculate distance between SAM and fighter
-     */
-    getDistanceSAMToFighter(): number;
-    /**
-     * Calculate azimuth from SAM to fighter
-     */
-    getAzimuthSAMToFighter(): number;
     /**
      * Get fighter RCS as seen from SAM position
      */
-    getFighterRCSFromSAM(): number;
-    getRangeAtAzimuth(azimuthDeg: number): number;
-    isWithinMEMR(distance: number): boolean;
+    getFighterRCSFromSAM(fighter: Fighter, samSystem: SAMSystem): number;
     /**
      * Need to check between time steps if either missile intercepted its target
      * by raycast method
      */
     checkMissileIntercept(missile: TMissile, targetPos: IPosition2D, previousMissilePos: IPosition2D): boolean;
     /**
-     * Calculate SAM detection range for current fighter position/aspect
-     *
-     * @param accountForPrecipitation - Include path attenuation if field exists
-     * @returns Detection range (km)
-     */
-    fighterDetect(accountForPrecipitation?: boolean): number;
-    /**
-     * Check if fighter is currently detected by SAM
-     */
-    isFighterDetected(accountForPrecipitation?: boolean): boolean;
-    /**
-     * Check if fighter is within SAM MEMR
-     */
-    isFighterWithinMEMR(): boolean;
-    /**
-     * Check if fighter should launch HARM
-     */
-    shouldFighterLaunchHARM(): boolean;
-    /**
-     * Update fighter position based on velocity and time step
-     */
-    updateFighterPosition(): void;
-    /**
      * Get current scenario state snapshot
      */
     getState(): Promise<{
-        samPosition: {
-            x: number;
-            y: number;
-        };
-        fighterPosition: {
-            x: number;
-            y: number;
-        };
-        distance: number;
-        azimuth: number;
-        fighterRCS: number;
-        isDetected: boolean;
-        isWithinMEMR: boolean;
-        shouldLaunchHARM: boolean;
+        sams: SAMSystem[];
+        fighters: Fighter[];
+        missiles: TMissile[];
+        timeElapsed: number;
+        isEngagementComplete: boolean;
     }>;
 }
 export {};

@@ -25,159 +25,280 @@ export class Scenario {
     timeStep;
     timeElapsed = 0;
     scenario;
-    samSystem;
-    fighter;
+    sams;
+    fighters;
     missiles = [];
     isEngagementComplete = false;
+    scenarioSams;
+    scenarioFighters;
     /**
      * Private constructor - use static create() method instead
      * This enforces async initialization through the factory pattern
      */
-    constructor(scenario, samSystem, fighter, timeStep) {
+    constructor(scenario, sams, fighters, timeStep) {
         this.id = scenario.id;
         this.scenario = scenario;
         this.timeStep = timeStep ?? scenario.timeStep;
-        this.samSystem = samSystem;
-        this.fighter = fighter;
+        this.sams = scenario.platforms.sams;
+        this.fighters = scenario.platforms.fighters;
+        this.scenarioSams = sams;
+        this.scenarioFighters = fighters;
     }
     /**
      * Static factory method for async initialization
      * Use this instead of constructor: const scenario = await Scenario.create(...)
+     *
+     * Supports both legacy single-platform format and new array format
      */
     static async create(scenario, timeStep) {
-        // Load platform configurations asynchronously
-        const fighterPlatform = await storage.loadFighterPlatform(scenario.platforms.fighter.configId);
-        const samPlatform = await storage.loadSAMPlatform(scenario.platforms.sam.configId);
-        if (!fighterPlatform) {
-            throw new Error(`Fighter platform config not found: ${scenario.platforms.fighter.configId}`);
+        // Handle legacy format migration - convert old single platform format to new array format
+        const samPlatforms = [];
+        const fighterPlatforms = [];
+        // For now, use first SAM and first fighter (multi-platform support coming later)
+        if (scenario.platforms.sams.length === 0) {
+            throw new Error('Scenario must have at least one SAM system');
         }
-        if (!samPlatform) {
-            throw new Error(`SAM system config not found: ${scenario.platforms.sam.configId}`);
+        if (scenario.platforms.fighters.length === 0) {
+            throw new Error('Scenario must have at least one fighter');
         }
-        // Create platform instances with scenario-specific position and heading
-        const fighter = new Fighter(fighterPlatform, scenario.platforms.fighter.position, scenario.platforms.fighter.heading);
-        const samSystem = new SAMSystem(samPlatform, scenario);
-        await samSystem.radar.loadITUData();
-        await samSystem.initPrecipitationField(scenario);
-        // Set SAM position from scenario
-        samSystem.position = scenario.platforms.sam.position;
+        for (const samPlatformData of scenario.platforms.sams) {
+            const samPlatform = await storage.loadSAMPlatform(samPlatformData.id);
+            if (!samPlatform) {
+                console.log(`\nSAM Platforms in Scenario: ${JSON.stringify(scenario.platforms.sams)}`);
+                console.log(`\nSAM Platform Data: ${JSON.stringify(samPlatformData)}`);
+                throw new Error(`SAM platform not found: ${samPlatformData.id}`);
+            }
+            // create SAMSystem instance
+            const samSystem = new SAMSystem(samPlatform, scenario);
+            await samSystem.radar.loadITUData();
+            await samSystem.initPrecipitationField(scenario);
+            samSystem.position = samPlatformData.position;
+            samPlatforms.push(samSystem);
+        }
+        let fighterIndex = 0;
+        for (const fighterPlatformData of scenario.platforms.fighters) {
+            const fighterPlatform = await storage.loadFighterPlatform(fighterPlatformData.id);
+            if (!fighterPlatform) {
+                throw new Error(`Fighter platform not found: ${fighterPlatformData.id}`);
+            }
+            const fighterId = `${fighterPlatformData.id}-${fighterIndex++}`;
+            try {
+                const fighter = new Fighter(fighterPlatformData, fighterPlatformData.position, fighterPlatformData.heading);
+                fighter.id = fighterId;
+                fighter.heading = fighterPlatformData.heading; // Convert to radians
+                fighterPlatforms.push(fighter);
+                console.log(`Created Fighter ID: ${fighter.id} at position (${fighter.position.x}, ${fighter.position.y}) with heading ${fighter.heading} radians`);
+            }
+            catch (e) {
+                console.log(`\nFighter Platforms in Scenario: ${JSON.stringify(scenario.platforms.fighters)}`);
+                console.log(`\nFighter Platform Data: ${JSON.stringify(fighterPlatformData)}`);
+                console.error(`Error creating Fighter instance: ${e}`);
+            }
+            fighterIndex++;
+        }
         // Return fully initialized Scenario
-        return new Scenario(scenario, samSystem, fighter, timeStep);
+        return new Scenario(scenario, samPlatforms, fighterPlatforms, timeStep);
     }
     engagementComplete() {
         return this.isEngagementComplete;
     }
-    /*
-     * timeStep - advance scenario by time step and update platform states
-    */
-    advanceSimulationTimeStep() {
-        this.timeElapsed += this.timeStep;
-        // Calculate current engagement parameters - we will need to refactor this later
-        const distance = this.getDistanceSAMToFighter();
-        const isDetected = this.isFighterDetected(true);
-        const azimuth = this.getAzimuthSAMToFighter();
-        if (isDetected) {
-            this.samSystem.trackingStatus.status = 'tracking';
-            this.samSystem.trackingStatus.timeElapsedTracking += this.timeStep;
-        }
-        else {
-            this.samSystem.trackingStatus.status = 'not_tracking';
-            this.samSystem.trackingStatus.timeElapsedTracking = 0;
-        }
-        // ============================================================================
-        // SAM Detection and Missile Launch Logic
-        // ============================================================================
-        if (isDetected && this.samSystem.state === 'active') {
-            if (this.isFighterWithinMEMR() && this.samSystem.status.missilesRemaining > 0) {
-                if (this.timeElapsed - this.samSystem.status.lastLaunchTime >= this.samSystem.launchIntervalSec) {
-                    const speedOfSound = 343; // m/s
-                    const missileVelocityKmS = (this.samSystem.missileVelocity * speedOfSound) / 1000;
-                    this.missiles.push(createMissile(this.samSystem.position, missileVelocityKmS, azimuth, 'sam', this.timeElapsed, this.fighter, this.samSystem.properties.memr));
-                    this.samSystem.status.missilesRemaining--;
-                    this.samSystem.status.lastLaunchTime = this.timeElapsed;
-                }
-            }
-        }
-        // ============================================================================
-        // HARM Launch Logic
-        // ============================================================================
-        if (this.shouldFighterLaunchHARM() && this.fighter.missilesRemaining > 0) {
-            // Fighter launches HARM (only one HARM for now)
-            const speedOfSound = 343; // m/s
-            const harmVelocityKmS = (this.fighter.harmVelocity * speedOfSound) / 1000;
-            const angleToSAM = Math.atan2(this.scenario.platforms.sam.position.y - this.fighter.position.y, this.scenario.platforms.sam.position.x - this.fighter.position.x) * 180 / Math.PI;
-            this.missiles.push(createMissile(this.fighter.position, harmVelocityKmS, angleToSAM, 'fighter', this.timeElapsed, this.samSystem, this.fighter.harmRange));
-            this.fighter.missilesRemaining--;
-        }
-        // ============================================================================
-        // Update Missile Tracking Statuses
-        // ============================================================================
-        const anglePerturbationRad = (Math.PI / 180) * 5; // 2 degree max perturbation
-        for (const missile of this.missiles) {
-            if (missile.status === 'active') {
-                if (this.samSystem.trackingStatus.status !== 'tracking') {
-                    missile.heading += (Math.random() * 2 - 1) * anglePerturbationRad * (180 / Math.PI);
-                }
-                else {
-                    // Adjust heading toward target but with a maximum 30G turn rate maneuver
-                    const dx = missile.target.position.x - missile.position.x;
-                    const dy = missile.target.position.y - missile.position.y;
-                    const desiredHeading = (Math.atan2(dy, dx) * 180) / Math.PI;
-                    let headingDiff = desiredHeading - missile.heading;
-                    // Derive basic kinematics for turn rate limit all velocities in objects are in mach
-                    let headingDiffRad = (headingDiff * Math.PI) / 180;
-                    let velMetersPerSec = missile.velocity * 343; // km/s to m/s
-                    const maxGForce = 9.8 * 30; // 30G
-                    const maxTurnRate = maxGForce / velMetersPerSec; // radians per second
-                    if (Math.abs(headingDiffRad) > maxTurnRate * this.timeStep) {
-                        missile.heading += (maxTurnRate * this.timeStep) * (headingDiffRad > 0 ? 1 : -1) * (180 / Math.PI);
+    updateSAMTrackingStatus() {
+        for (const samSystem of this.scenarioSams) {
+            for (const fighter of this.scenarioFighters) {
+                const distance = Math.sqrt(Math.pow(fighter.position.x - samSystem.position.x, 2) +
+                    Math.pow(fighter.position.y - samSystem.position.y, 2));
+                const azimuth = samSystem.getAzimuthToTarget(fighter.position);
+                const rcs = fighter.getRCSFromPosition(fighter.position, samSystem.position, fighter.heading);
+                const pulses = 1;
+                const range = samSystem.getRangeAtAzimuth(azimuth);
+                const detectionRange = samSystem.calculateDetectionRange(rcs, pulses, range);
+                if (distance <= detectionRange) {
+                    // Check if target id is already tracked
+                    const retObj = samSystem.trackedTargets.get(fighter.id);
+                    if (retObj) {
+                        retObj.timeElapsedTracking += this.timeStep;
+                        retObj.distance = distance;
+                        retObj.azimuth = azimuth;
+                        retObj.status = 'tracking';
                     }
                     else {
-                        missile.heading = desiredHeading;
+                        // New track
+                        samSystem.trackedTargets.set(fighter.id, {
+                            id: fighter.id,
+                            acquisitionTime: this.timeElapsed,
+                            distance: distance,
+                            azimuth: azimuth,
+                            status: 'tracking',
+                            timeElapsedTracking: this.timeStep,
+                        });
+                    }
+                }
+                else {
+                    samSystem.trackedTargets.delete(fighter.id);
+                }
+            }
+        }
+    }
+    SAMDetectionAndEngagementLogic() {
+        for (const samSystem of this.scenarioSams) {
+            // Get tracked targets by SAM
+            for (const [targetId, track] of samSystem.trackedTargets) {
+                const targetFighter = this.scenarioFighters.find(f => f.id === targetId);
+                if (targetFighter) {
+                    const distance = track.distance;
+                    if (distance <= samSystem.properties.memr) {
+                        // Target within MEMR
+                        const timeSinceLastLaunch = this.timeElapsed - samSystem.status.lastLaunchTime;
+                        if (track.timeElapsedTracking >= samSystem.properties.autoAcquisitionTime && (timeSinceLastLaunch >= samSystem.launchIntervalSec)) {
+                            //Launch missile if not already launched
+                            if (samSystem.status.missilesRemaining > 0) {
+                                const speedOfSound = 343; // m/s
+                                const missileVelocityKmS = (samSystem.missileVelocity * speedOfSound) / 1000;
+                                const azimuth = samSystem.getAzimuthToTarget(targetFighter.position);
+                                const missilePosition = { x: samSystem.position.x, y: samSystem.position.y };
+                                this.missiles.push(createMissile(missilePosition, missileVelocityKmS, azimuth, 'sam', this.timeElapsed, targetFighter, samSystem.properties.memr));
+                                samSystem.status.missilesRemaining--;
+                                samSystem.status.lastLaunchTime = this.timeElapsed;
+                            } // Launch missile logic here
+                        }
+                    }
+                    // ============================================================================
+                }
+            }
+        }
+    }
+    fighterLaunchHARMLogic() {
+        for (const fighter of this.scenarioFighters) {
+            // If the SAM is tracking any fighter, any fighter within range may launch HARM - ignore attenuation between fighter and SAM for now
+            for (const samSystem of this.scenarioSams) {
+                const distance = Math.sqrt(Math.pow(fighter.position.x - samSystem.position.x, 2) + Math.pow(fighter.position.y - samSystem.position.y, 2));
+                if (distance <= fighter.harmRange) {
+                    // Check if SAM is actively tracking any fighter
+                    if (samSystem.trackedTargets.size > 0 && fighter.missilesRemaining > 0) {
+                        // Fighter may launch HARM
+                        const speedOfSound = 343; // m/s
+                        const harmVelocityKmS = (fighter.harmVelocity * speedOfSound) / 1000;
+                        const azimuth = fighter.getAzimuthToTarget(samSystem.position);
+                        const missilePosition = { x: fighter.position.x, y: fighter.position.y };
+                        this.missiles.push(createMissile(missilePosition, harmVelocityKmS, azimuth, 'fighter', this.timeElapsed, samSystem));
+                        fighter.missilesRemaining--;
                     }
                 }
             }
         }
-        // ============================================================================
-        // Update Missile Positions
-        // ============================================================================
+    }
+    /**
+     * Update missile tracking status and heading based on target tracking
+     */
+    updateMissileTracking() {
+        const anglePerturbationRad = (Math.PI / 180) * 5; // 5 degree max perturbation
+        for (const missile of this.missiles) {
+            if (missile.status !== 'active')
+                continue;
+            // Check if the launching platform is tracking
+            let isTracking = false;
+            if (missile.launchedBy === 'sam') {
+                const launchingSAM = this.scenarioSams.find(sam => sam.trackedTargets.has(missile.target.id));
+                isTracking = launchingSAM !== undefined;
+            }
+            else {
+                // HARM missiles don't need target tracking
+                isTracking = true;
+            }
+            if (!isTracking) {
+                // Add random perturbation when not tracking
+                missile.heading += (Math.random() * 2 - 1) * anglePerturbationRad;
+            }
+            else {
+                // Adjust heading toward target with 30G turn rate limit
+                const dx = missile.target.position.x - missile.position.x;
+                const dy = missile.target.position.y - missile.position.y;
+                const currentHeading = Math.atan2(dy, dx);
+                const prevHeading = missile.heading;
+                const updateHeading = this.updateHeading(prevHeading, currentHeading);
+                const headingDiff = updateHeading - prevHeading;
+                // Derive turn rate limit based on velocity
+                const velMetersPerSec = missile.velocity * 343; // km/s to m/s
+                const maxGForce = 9.8 * 30; // 30G
+                const maxTurnRate = maxGForce / velMetersPerSec; // radians per second
+                if (Math.abs(headingDiff) > maxTurnRate * this.timeStep) {
+                    missile.heading += (maxTurnRate * this.timeStep) * (headingDiff > 0 ? 1 : -1);
+                }
+                else {
+                    missile.heading = updateHeading;
+                }
+            }
+        }
+    }
+    /**
+     * Update missile positions based on velocity and heading
+     */
+    updateMissilePositions() {
         for (const missile of this.missiles) {
             if (missile.status === 'active') {
-                const headingRad = (missile.heading * Math.PI) / 180;
+                const headingRad = missile.heading;
                 missile.position.x += missile.velocity * Math.cos(headingRad) * this.timeStep;
                 missile.position.y += missile.velocity * Math.sin(headingRad) * this.timeStep;
             }
         }
-        // ===========================================================================
-        // Evasive Maneuevers - Update Fighter Heading Max G 6.0
-        // ===========================================================================
-        if (this.fighter.maneuvers === 'evasive') {
-            const maxGForce = 9.8 * 6; // 6G
-            const velMetersPerSec = this.fighter.velocity * 343; // km/s to m/s
-            const maxTurnRate = maxGForce / velMetersPerSec; // radians per second
-            const angleToSAMRad = Math.atan2(this.scenario.platforms.sam.position.y - this.fighter.position.y, this.scenario.platforms.sam.position.x - this.fighter.position.x);
-            const desiredHeadingRad = angleToSAMRad + Math.PI / 2; // Perpendicular to SAM
-            let headingDiffRad = desiredHeadingRad - (this.fighter.heading * Math.PI / 180);
-            // Normalize angle difference to [-PI, PI]
-            headingDiffRad = Math.atan2(Math.sin(headingDiffRad), Math.cos(headingDiffRad));
-            if (Math.abs(headingDiffRad) > maxTurnRate * this.timeStep) {
-                this.fighter.heading += (maxTurnRate * this.timeStep) * (headingDiffRad > 0 ? 1 : -1) * (180 / Math.PI);
+    }
+    /**
+     * Update fighter evasive maneuvers (6G max)
+     */
+    updateFighterManeuvers() {
+        for (const fighter of this.scenarioFighters) {
+            if (fighter.maneuvers === 'evasive') {
+                // Find nearest SAM to evade
+                let nearestSAM = null;
+                let minDistance = Infinity;
+                for (const sam of this.scenarioSams) {
+                    const dx = sam.position.x - fighter.position.x;
+                    const dy = sam.position.y - fighter.position.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestSAM = sam;
+                    }
+                }
+                if (nearestSAM) {
+                    const maxGForce = 9.8 * 6; // 6G
+                    const velMetersPerSec = fighter.velocity * 343; // km/s to m/s
+                    const maxTurnRate = maxGForce / velMetersPerSec; // radians per second
+                    const angleToSAMRad = Math.atan2(nearestSAM.position.y - fighter.position.y, nearestSAM.position.x - fighter.position.x);
+                    const desiredHeadingRad = angleToSAMRad + Math.PI; // Away from SAM
+                    const prevHeading = fighter.heading;
+                    const updateHeading = this.updateHeading(prevHeading, desiredHeadingRad);
+                    const headingDiffRad = updateHeading - prevHeading;
+                    if (Math.abs(headingDiffRad) > maxTurnRate * this.timeStep) {
+                        fighter.heading += (maxTurnRate * this.timeStep) * (headingDiffRad > 0 ? 1 : -1);
+                    }
+                    else {
+                        fighter.heading += headingDiffRad;
+                    }
+                }
             }
-            else {
-                this.fighter.heading += headingDiffRad * (180 / Math.PI);
+        }
+    }
+    /**
+     * Update fighter positions based on velocity and heading
+     */
+    updateFighterPositions() {
+        for (const fighter of this.scenarioFighters) {
+            if (fighter.state === 'active') {
+                const speedOfSound = 343; // m/s
+                const velocityMs = fighter.velocity * speedOfSound;
+                const velocityKmS = velocityMs / 1000;
+                const distanceKm = velocityKmS * this.timeStep;
+                const headingRad = fighter.heading;
+                fighter.position.x += distanceKm * Math.cos(headingRad);
+                fighter.position.y += distanceKm * Math.sin(headingRad);
             }
         }
-        else {
-            // Maintain current heading
-        }
-        // Update fighter position
-        if (this.fighter.state === 'active') {
-            this.updateFighterPosition();
-        }
-        // ============================================================================
-        // Evaluate Kill Criteria
-        // ============================================================================
-        let simulationComplete = false;
+    }
+    /**
+     * Evaluate missile kill criteria and update status
+     */
+    evaluateKillCriteria() {
         for (const missile of this.missiles) {
             if (missile.status === 'active') {
                 const previousPosition = { ...missile.position };
@@ -186,15 +307,7 @@ export class Scenario {
                 if (intercepted) {
                     missile.status = 'kill';
                     missile.timeOfImpact = this.timeElapsed;
-                    if (missile.launchedBy === 'sam') {
-                        //coerce target to Fighter type
-                        missile.target.state = 'destroyed';
-                        simulationComplete = true;
-                    }
-                    else if (missile.launchedBy === 'fighter') {
-                        missile.target.state = 'destroyed';
-                        simulationComplete = true;
-                    }
+                    missile.target.state = 'destroyed';
                 }
                 else {
                     // Check if missile has exceeded max range
@@ -205,23 +318,51 @@ export class Scenario {
                 }
             }
         }
-        // ============================================================================
-        // Check that all missiles expended and either kills or missies
-        //=============================================================================
-        for (const missile of this.missiles) {
-            if (missile.status === 'active') {
-                simulationComplete = false;
-                break;
-            }
-            else {
-                simulationComplete = true;
-            }
+    }
+    /**
+     * Check if simulation is complete
+     */
+    checkSimulationComplete() {
+        // Check if any platform is destroyed
+        const anyPlatformDestroyed = this.scenarioSams.some(sam => sam.state === 'destroyed') ||
+            this.scenarioFighters.some(fighter => fighter.state === 'destroyed');
+        if (anyPlatformDestroyed) {
+            return true;
+        }
+        // Check if all missiles have resolved
+        const allMissilesResolved = this.missiles.every(m => m.status !== 'active');
+        if (this.missiles.length > 0 && allMissilesResolved) {
+            return true;
         }
         // Cap simulation time
         if (this.timeElapsed >= MAX_SIMULATION_TIME) {
-            this.timeElapsed = MAX_SIMULATION_TIME;
-            simulationComplete = true;
+            return true;
         }
+        return false;
+    }
+    /**
+     * Advance scenario by time step and update platform states
+     */
+    advanceSimulationTimeStep() {
+        this.timeElapsed += this.timeStep;
+        // Update SAM tracking status for all SAMs and fighters
+        this.updateSAMTrackingStatus();
+        // SAM detection and missile launch logic
+        this.SAMDetectionAndEngagementLogic();
+        // Fighter HARM launch logic
+        this.fighterLaunchHARMLogic();
+        // Update missile tracking and heading
+        this.updateMissileTracking();
+        // Update missile positions
+        this.updateMissilePositions();
+        // Update fighter evasive maneuvers
+        this.updateFighterManeuvers();
+        // Update fighter positions
+        this.updateFighterPositions();
+        // Evaluate kill criteria
+        this.evaluateKillCriteria();
+        // Check if simulation is complete
+        const simulationComplete = this.checkSimulationComplete();
         this.isEngagementComplete = simulationComplete;
         return simulationComplete;
     }
@@ -251,7 +392,8 @@ export class Scenario {
         const missileResults = {
             missiles: missileResultsArray
         };
-        const success = this.samSystem.state === 'destroyed' ? false : true;
+        // Success if all SAMs are destroyed
+        const success = this.scenarioSams.every(sam => sam.state === 'destroyed');
         const result = {
             scenarioId: this.scenario.id,
             missileResults: missileResults,
@@ -260,157 +402,82 @@ export class Scenario {
         };
         return result;
     }
+    wrapToPi(a) {
+        return Math.atan2(Math.sin(a), Math.cos(a));
+    }
+    updateHeading(prev, current) {
+        const delta = this.wrapToPi(current - prev);
+        return prev + delta;
+    }
     /**
      * Apply RCS and Pulse Integration to array and return array
      * @param azimuthDeg
      * @param rcs
      * @returns
      */
-    getDetectionRanges(ranges, rcs, numPulses, pulse_mode) {
-        const adjustedRanges = ranges.map((nominalRange) => {
-            const detectionRange = this.samSystem.radar.calculateDetectionRange(rcs, numPulses, nominalRange);
-            return detectionRange;
-        });
-        return adjustedRanges;
-    }
-    getNominalRanges() {
-        return this.samSystem.getRangesAzimuth();
-    }
-    getPrecipitationRanges() {
-        return this.samSystem.precipRangesAzimuth;
-    }
-    /**
-     * Calculate distance between SAM and fighter
-     */
-    getDistanceSAMToFighter() {
-        const fighterPosition = this.scenario.platforms.fighter.position;
-        const samPosition = this.scenario.platforms.sam.position;
-        const dx = fighterPosition.x - samPosition.x;
-        const dy = fighterPosition.y - samPosition.y;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-    /**
-     * Calculate azimuth from SAM to fighter
-     */
-    getAzimuthSAMToFighter() {
-        const fighterPosition = this.scenario.platforms.fighter.position;
-        const samPosition = this.scenario.platforms.sam.position;
-        const dx = fighterPosition.x - samPosition.x;
-        const dy = fighterPosition.y - samPosition.y;
-        return (Math.atan2(dy, dx) * 180) / Math.PI;
-    }
     /**
      * Get fighter RCS as seen from SAM position
      */
-    getFighterRCSFromSAM() {
-        return this.fighter.getRCSFromPosition(this.scenario.platforms.fighter.position, this.scenario.platforms.sam.position, this.scenario.platforms.fighter.heading);
-    }
-    getRangeAtAzimuth(azimuthDeg) {
-        const azimuths = this.samSystem.getRangesAzimuth();
-        const numAzimuths = azimuths.length;
-        const azimuthIndex = Math.round(((azimuthDeg % 360) / 360) * numAzimuths) % numAzimuths;
-        return azimuths[azimuthIndex];
-    }
-    isWithinMEMR(distance) {
-        return distance <= this.samSystem.properties.memr;
+    getFighterRCSFromSAM(fighter, samSystem) {
+        return fighter.getRCSFromPosition(fighter.position, samSystem.position, fighter.heading);
     }
     /**
      * Need to check between time steps if either missile intercepted its target
      * by raycast method
      */
     checkMissileIntercept(missile, targetPos, previousMissilePos) {
-        // Vector from previous to current missile position
+        // Define kill radius
+        const killRadius = missile.launchedBy === 'sam' ? 1.0 : 5.0; // 0.02 : 0.05; // km
+        // Simple case test the distance at current position
+        const dxCurrent = missile.position.x - targetPos.x;
+        const dyCurrent = missile.position.y - targetPos.y;
+        const distanceCurrent = Math.sqrt(dxCurrent * dxCurrent + dyCurrent * dyCurrent);
+        if (distanceCurrent <= killRadius) {
+            return true;
+        }
+        // Raycast method - calculate perpendicular distance from target to missile path
         const mx = missile.position.x - previousMissilePos.x;
         const my = missile.position.y - previousMissilePos.y;
-        // Vector from previous missile position to target
         const tx = targetPos.x - previousMissilePos.x;
         const ty = targetPos.y - previousMissilePos.y;
-        // Project target vector onto missile path vector
+        // Matrix expanded solution
+        const x1 = missile.position.x;
+        const y1 = missile.position.y;
+        const x2 = targetPos.x;
+        const y2 = targetPos.y;
+        // Magnitudes
         const magM = Math.sqrt(mx * mx + my * my);
-        const dot = (tx * mx + ty * my) / magM;
-        // Closest point on missile path to target
-        const closestX = previousMissilePos.x + (dot / magM) * mx;
-        const closestY = previousMissilePos.y + (dot / magM) * my;
-        // Distance from closest point to target
-        const distX = targetPos.x - closestX;
-        const distY = targetPos.y - closestY;
-        const distanceToTarget = Math.sqrt(distX * distX + distY * distY);
-        // Define kill radius
-        const killRadius = missile.launchedBy === 'sam' ? 0.02 : 0.05; // km
-        return distanceToTarget <= killRadius;
-    }
-    /**
-     * Calculate SAM detection range for current fighter position/aspect
-     *
-     * @param accountForPrecipitation - Include path attenuation if field exists
-     * @returns Detection range (km)
-     */
-    fighterDetect(accountForPrecipitation = true) {
-        const fighterRCS = this.getFighterRCSFromSAM();
-        let pathAttenuation = 0;
-        if (accountForPrecipitation) {
-            const azimuthDeg = this.fighter.getAzimuthFromSAM(this.scenario.platforms.sam.position);
-            const azimuths = this.samSystem.getRangesAzimuth();
-            const numAzimuths = azimuths.length;
-            const azimuthIndex = Math.round(((azimuthDeg % 360) / 360) * numAzimuths) % numAzimuths;
-            //Get Aspect RCS
-            const rcs = this.fighter.getRCSAtAspect(azimuthDeg);
-            // Recalculate detection range for given RCS at this azimuth
-            const nominalRange = azimuths[azimuthIndex];
-            const pathAttenuationDb = 0; // Placeholder, implement path attenuation if needed
-            const detectionRange = this.samSystem.radar.calculateDetectionRange(rcs, this.samSystem.pulseMode.numPulses, nominalRange);
-            return detectionRange;
+        const magT = Math.sqrt(x2 * x2 + y2 * y2);
+        // Target Perpendicular direction
+        const theta = Math.acos((mx * x2 + my * y2) / (magM * magT));
+        const thetaP = (Math.PI / 2) - theta;
+        const ex = Math.cos(thetaP);
+        const ey = Math.sin(thetaP);
+        const t = ((x2 - x1) * ey + (y2 - y1) * ex) / (mx * ey - my * ex);
+        const u = ((x2 - x1) * my - (y2 - y1) * mx) / (mx * ey - my * ex);
+        // Intersection point
+        const ix = (x1 + t * mx);
+        const iy = (y1 + t * my);
+        // Intersection distance
+        const intersectionDistance = Math.sqrt((ix - targetPos.x) * (ix - targetPos.x) + (iy - targetPos.y) * (iy - targetPos.y));
+        // Check if intersection point is within missile segment
+        if (t < 0 || t > 1) {
+            return false;
         }
-        return this.samSystem.calculateDetectionRange(fighterRCS, this.samSystem.pulseMode.numPulses, this.samSystem.nominalRange);
-    }
-    /**
-     * Check if fighter is currently detected by SAM
-     */
-    isFighterDetected(accountForPrecipitation = true) {
-        const distance = this.getDistanceSAMToFighter();
-        const detectionRange = this.fighterDetect(accountForPrecipitation);
-        return distance <= detectionRange;
-    }
-    /**
-     * Check if fighter is within SAM MEMR
-     */
-    isFighterWithinMEMR() {
-        const distance = this.getDistanceSAMToFighter();
-        return this.samSystem.isWithinMEMR(distance);
-    }
-    /**
-     * Check if fighter should launch HARM
-     */
-    shouldFighterLaunchHARM() {
-        const distance = this.getDistanceSAMToFighter();
-        return this.fighter.shouldLaunchHARM(distance, this.samSystem.properties.memr, this.samSystem.trackingStatus.status === 'tracking');
-    }
-    /**
-     * Update fighter position based on velocity and time step
-     */
-    updateFighterPosition() {
-        // Simple straight-line movement for now
-        const speedOfSound = 343; // m/s
-        const velocityMs = this.fighter.velocity * speedOfSound;
-        const velocityKmS = velocityMs / 1000;
-        const distanceKm = velocityKmS * this.timeStep;
-        const headingRad = (this.fighter.heading * Math.PI) / 180;
-        this.fighter.position.x += distanceKm * Math.cos(headingRad);
-        this.fighter.position.y = distanceKm * Math.sin(headingRad);
+        // Check if within kill radius
+        const perpDist = intersectionDistance;
+        return perpDist <= killRadius;
     }
     /**
      * Get current scenario state snapshot
      */
     async getState() {
         return {
-            samPosition: { ...this.scenario.platforms.sam.position },
-            fighterPosition: { ...this.fighter.position },
-            distance: this.getDistanceSAMToFighter(),
-            azimuth: this.getAzimuthSAMToFighter(),
-            fighterRCS: this.getFighterRCSFromSAM(),
-            isDetected: await this.isFighterDetected(),
-            isWithinMEMR: this.isFighterWithinMEMR(),
-            shouldLaunchHARM: this.shouldFighterLaunchHARM(),
+            sams: this.scenarioSams,
+            fighters: this.scenarioFighters,
+            missiles: this.missiles,
+            timeElapsed: this.timeElapsed,
+            isEngagementComplete: this.isEngagementComplete,
         };
     }
 }

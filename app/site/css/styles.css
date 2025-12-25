@@ -11,12 +11,34 @@
   --accent-primary: #48beff;
   --accent-secondary: #3dfaff;
   --border-color: #3dfaff;
-  --success-color: #4ade80;
-  --warning-color: #fbbf24;
-  --danger-color: #ef4444;
+  --success-color: #4ade809a;
+  --warning-color: #fbbe2496;
+  --danger-color: #ef44448f;
   --glass-bg: rgba(10, 10, 10, 0.75);
   --glass-border: rgba(61, 250, 255, 0.3);
   --glass-glow: rgba(72, 190, 255, 0.2);
+}
+
+@font-face{
+  font-family: 'melody';
+  src: url('../fonts/Melody-Regular.woff2') format('woff2'),
+       url('../fonts/Melody-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face{
+  font-family: 'latenight';
+  src: url('../fonts/LateNight-Regular.woff2') format('woff2'),
+       url('../fonts/LateNight-Regular.woff') format('woff');
+  font-weight: normal;
+}
+
+@font-face{
+  font-family: 'sofia';
+  src: url('../fonts/Sofia-Regular.woff2') format('woff2'),
+       url('../fonts/Sofia-Regular.woff') format('woff');
+  font-weight: normal;
 }
 
 * {
@@ -28,7 +50,7 @@
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'melody', sans-serif;
   overflow: hidden;
   width: 100vw;
   height: 100vh;
@@ -54,6 +76,35 @@ body {
 
 #radarCanvas:active {
   cursor: grabbing;
+}
+
+/* Edit Mode Indicator */
+.edit-mode-indicator {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(58, 122, 224, 0.95);
+  color: #ffffff;
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(58, 122, 224, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  z-index: 900;
+  pointer-events: none;
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(58, 122, 224, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(58, 122, 224, 0.7);
+  }
 }
 
 /* Glass-Pane Header */
@@ -97,6 +148,7 @@ body {
 
 .brand-subtitle {
   font-size: 0.85rem;
+  font-family: 'melody', sans-serif;
   color: var(--text-secondary);
   margin-left: 0.5rem;
   padding-left: 0.5rem;
@@ -462,9 +514,10 @@ body {
     display: none;
   }
 }
-  animation: fadeIn 0.2s ease-in;
-}
 
+/* ============================================================================
+ * Overlay Styles
+ * ============================================================================ */
 .overlay-backdrop {
   position: absolute;
   top: 0;
@@ -480,9 +533,10 @@ body {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  margin: 5% auto;
   max-width: 800px;
   width: 90%;
-  max-height: 90vh;
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);

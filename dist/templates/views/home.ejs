@@ -1,106 +1,189 @@
-<div class="row">
-  <div class="col-lg-8">
-    <div class="card bg-dark border-secondary">
-      <div class="card-body">
-        <h5 class="card-title text-primary">Visualization</h5>
-        <!-- Radar Canvas - Add bluejs bindings for zoom and click pan -->
-        <canvas id="radarCanvas" width="1024" height="1024"></canvas>
+  <!-- Full-Screen Canvas -->
+  <div class="fullscreen-canvas">
+    <canvas id="radarCanvas"></canvas>
+    <!-- Edit Mode Indicator -->
+    <div id="editModeIndicator" class="edit-mode-indicator d-none">
+      ✏️ EDIT MODE - Hold SHIFT to enter
+    </div>
+  </div>
+
+    <!-- Glass-Pane Header -->
+  <header class="glass-header">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="brand">
+          <span class="radar-icon">📡</span>
+          <span class="brand-text">SPEAR</span>
+          <span class="brand-subtitle">Synthetic Precipitative Environmental Attenuation Radar</span>
+        </span>
+        <div class="sim-time-display">
+          <span class="time-label">T:</span>
+          <span id="sim-time" class="time-value">0.0 s</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+    <!-- Glass-Pane Control Panel (Left) -->
+  <div class="glass-panel glass-panel-left">
+    <div class="panel-header">
+      <i class="bi bi-gear-fill"></i>
+      <span>Controls</span>
+    </div>
+    
+    <div class="panel-content">
+      <!-- Scenario Selection -->
+      <div class="control-group">
+        <label class="control-label">Scenario</label>
+        <select 
+          id="scenarioSelect"
+          bluejs="scenario-selector"
+          bluejs-trigger="change"
+          bluejs-binding="selectScenario"
+          class="form-select form-select-sm">
+          <option value="">Select Scenario...</option>
+        </select>
+        <button 
+          bluejs="btn-create-scenario"
+          bluejs-trigger="click"
+          bluejs-binding="createScenario"
+          class="btn btn-sm btn-outline-primary w-100 mt-2">
+          <i class="bi bi-plus-circle"></i> New Scenario
+        </button>
+        <button 
+          bluejs="btn-generate-precip"
+          bluejs-trigger="click"
+          bluejs-binding="generatePrecipitation"
+          class="btn btn-sm btn-outline-primary w-100 mt-2">
+          <i class="bi bi-hammer"></i> Generate Precipitation
+        </button>
+        
+
+      </div>
+
+       <!-- Simulation Controls -->
+      <div class="control-group">
+        <label class="control-label">Simulation</label>
+        <div class="btn-group-vertical w-100" role="group">
+          <button 
+            bluejs="btn-run-sim"
+            bluejs-trigger="click"
+            bluejs-binding="runSimulation"
+            id="runSimBtn"
+            class="btn btn-sm btn-success">
+            <i class="bi bi-play-fill"></i> Run
+          </button>
+          <button 
+            bluejs="btn-stop-sim"
+            bluejs-trigger="click"
+            bluejs-binding="pauseSimulation"
+            id="stopSimBtn"
+            class="btn btn-sm btn-danger">
+            <i class="bi bi-pause-fill"></i> Pause
+          </button>
+          <button 
+            bluejs="btn-step-sim"
+            bluejs-trigger="click"
+            bluejs-binding="stepSimulation"
+            id="stepSimBtn"
+            class="btn btn-sm btn-primary">
+            <i class="bi bi-skip-forward-fill"></i> Step
+          </button>
+          <button 
+            bluejs="btn-reset-sim"
+            bluejs-trigger="click"
+            bluejs-binding="resetSimulation"
+            class="btn btn-sm btn-warning">
+            <i class="bi bi-arrow-clockwise"></i> Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Platform Management -->
+      <div class="control-group">
+        <label class="control-label">Platform Editor</label>
+        <div id="editorPanel" class="editor-panel">
+          <p class="text-muted small">Loading...</p>
+        </div>
       </div>
     </div>
   </div>
-  
-  <div class="col-lg-4">
-    <!-- Controls Panel -->
-    <div class="card bg-dark border-secondary mb-3">
-      <div class="card-header bg-secondary">
-        <h6 class="mb-0">Engagement Scenario</h6>
-      </div>
-      <div class="card-body">
-        
-        <div class="mb-3">
-          <label for="scenarioSelect" class="form-label">Scenario</label>
-          <select id="scenarioSelect" 
-                  bluejs="select-scenario" 
-                  bluejs-trigger="change" 
-                  bluejs-binding="selectScenario"
-                  class="form-select bg-dark text-light border-secondary">
-            <option value="">Select Scenario...</option>
-            <% if (scenarios && scenarios.length > 0) { %>
-              <% scenarios.forEach(scenario => { %>
-                <option value="<%= scenario.id %>"><%= scenario.name %></option>
-              <% }); %>
-            <% } %>
-          </select>
-        </div>
-        
-        <div class="d-grid gap-2">
-          <button bluejs="btn-generate-precip" bluejs-trigger="click" bluejs-binding="generatePrecipitation" class="btn btn-primary" type="button">
-            <span id="genPrecipBtnText">Generate Precipitation Field</span>
-            <span id="genPrecipBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </span>
-          </button>
 
-
-        <button bluejs="btn-step-sim" bluejs-trigger="click" bluejs-binding="stepSimulation" class="btn btn-primary" type="button">
-            <span id="stepSimBtnText">Step Simulation</span>
-            <span id="stepSimBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </span>
-          </button>
-
-
-          <button bluejs="btn-run-sim" bluejs-trigger="click" bluejs-binding="runSimulation" class="btn btn-primary" type="button">
-            <span id="runSimBtnText">Run Simulation</span>
-            <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </span>
-          </button>
-          <button id="resetBtn" class="btn btn-secondary" type="button">Reset</button>
-        </div>
+  <!-- Glass-Pane Results Panel (Right) -->
+  <div class="glass-panel glass-panel-right">
+    <div class="panel-header">
+      <i class="bi bi-bar-chart-fill"></i>
+      <span>Results</span>
+    </div>
+    
+    <!-- Precipitation Image Type Toggle -->
+    <div class="control-group" style="padding: 0.5rem 1rem;">
+      <label class="control-label" style="font-size: 0.75rem; margin-bottom: 0.25rem;">Precip Display</label>
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button type="button" 
+                bluejs="btn-precip-normal"
+                bluejs-trigger="click"
+                bluejs-binding="setPrecipImageType"
+                data-image-type="normal"
+                class="btn btn-outline-primary active">
+          Normal
+        </button>
+        <button type="button" 
+                bluejs="btn-precip-overlay"
+                bluejs-trigger="click"
+                bluejs-binding="setPrecipImageType"
+                data-image-type="overlay"
+                class="btn btn-outline-primary">
+          Overlay
+        </button>
+        <button type="button" 
+                bluejs="btn-precip-jet"
+                bluejs-trigger="click"
+                bluejs-binding="setPrecipImageType"
+                data-image-type="jet"
+                class="btn btn-outline-primary">
+          Jet
+        </button>
       </div>
     </div>
     
-    <!-- Results Panel -->
-    <div class="card bg-dark border-secondary mb-3">
-      <div class="card-header bg-secondary">
-        <h6 class="mb-0">Results</h6>
-      </div>
-      <div class="card-body">
-        <div id="resultsPanel" class="text-muted small">
-          <p>No simulation run yet</p>
-        </div>
+    <div class="panel-content">
+      <div id="resultsPanel" class="results-content">
+        <p class="text-muted small">No simulation run yet</p>
       </div>
     </div>
-
-   <!-- Editor Panel -->
-     <div class="card bg-dark border-secondary">
-        <div class="card-header bg-secondary">
-         <h6 class="mb-0"><i class="bi bi-gear"></i> Editor</h6>
-        </div>
-        <div class="card-body">
-          <div id="editorPanel" class="text-muted small">
-            <div class="text-center py-3">
-              <div class="spinner-border spinner-border-sm text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-              <p class="mt-2 mb-0">Loading data...</p>
-            </div>
-          </div>
-          <div class="d-grid gap-2 mt-3">
-            <button bluejs="btn-create-platform-home" bluejs-trigger="click" bluejs-binding="createPlatform" class="btn btn-sm btn-outline-primary" type="button">
-              <i class="bi bi-plus-circle"></i> Create Platform
-            </button>
-            <button bluejs="btn-create-scenario-home" bluejs-trigger="click" bluejs-binding="createScenario" class="btn btn-sm btn-outline-success" type="button">
-              <i class="bi bi-plus-circle"></i> Create Scenario
-            </button>
-          </div>
-        </div>
-     </div>
-
-
   </div>
-</div>
+
+  <!-- Glass-Pane Legend (Bottom) -->
+  <div class="glass-panel glass-panel-bottom">
+    <div class="legend-content">
+      <div class="legend-item">
+        <span class="legend-color" style="background: #ff4444;"></span>
+        <span>SAM System</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #4444ff;"></span>
+        <span>Fighter Aircraft</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #ffaa00;"></span>
+        <span>Missiles</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: rgba(255, 68, 68, 0.3);"></span>
+        <span>MEMR Ring</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: rgba(68, 68, 255, 0.3);"></span>
+        <span>Detection Range</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: rgba(200, 200, 200, 0.2);"></span>
+        <span>Precipitation</span>
+      </div>
+    </div>
+  </div>
 
 
+ <!---- </div></div>.  ---->
 

@@ -2,10 +2,10 @@
  * Fighter platform model
  * Represents fighter aircraft with multi-aspect RCS and HARM capability
  */
-import type { IFighterPlatform, IRCSProfile } from '../types/index.js';
+import type { IFighterPlatform, IRCSProfile, IScenarioPlatform } from '../types/index.js';
 import type { IPosition2D } from '../types/index.js';
 export declare class Fighter {
-    readonly id: string;
+    id: string;
     readonly type: IFighterPlatform['type'];
     position: IPosition2D;
     velocity: number;
@@ -20,7 +20,7 @@ export declare class Fighter {
     missilesRemaining: number;
     state: 'active' | 'destroyed';
     maneuvers: 'none' | 'evasive';
-    constructor(platform: IFighterPlatform, position: IPosition2D, heading: number);
+    constructor(fighter: IScenarioPlatform, position: IPosition2D, heading: number);
     getHarmProperties(): {
         velocity: number;
         range: number;
@@ -29,6 +29,7 @@ export declare class Fighter {
     };
     launchHARM(currentTime: number): void;
     getVelocityKms(): number;
+    getAzimuthToTarget(targetPos: IPosition2D): number;
     /**
      * Get RCS based on aspect angle from observer
      *

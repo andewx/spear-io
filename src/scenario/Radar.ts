@@ -153,7 +153,7 @@ export class Radar {
       const pixelsPerKm = scenario.grid.resolution; // pixels per km
       const kmPerPixel = 1 / pixelsPerKm;
       const maxRangeKm = this.nominalRange; // Sample out to nominal range
-      const rangeStepKm = kmPerPixel * 1.0; // Sample at approx 1.5 pixel intervals
+      const rangeStepKm = kmPerPixel * 0.1; // Sample at approx 1.5 pixel intervals
       const NRay = Math.ceil(maxRangeKm / rangeStepKm);
 
       //Scenario max precipitation rate

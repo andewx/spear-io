@@ -16,11 +16,7 @@ export class SAMSystem {
     name;
     properties;
     pulseMode;
-    trackingStatus = {
-        status: 'not_tracking',
-        timeElapsedTracking: 0,
-        preferredTrackingMode: 'auto',
-    };
+    trackedTargets = new Map();
     radar;
     state;
     trackingRadar;
@@ -28,7 +24,7 @@ export class SAMSystem {
     nominalRange;
     nominalRangesAzimuth = []; // Precomputed nominal ranges over azimuth
     precipRangesAzimuth = []; // Precomputed ranges with precipitation attenuation
-    numAzimuths = 108; // e.g., 2.5 degree increments over 360 degrees
+    numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
     //TODO: Move these properties and others to ISAMSystem interface and store with platform
     launchIntervalSec = 5; // seconds between launches
     position = { x: 0, y: 0 }; // SAM position in km
@@ -75,6 +71,29 @@ export class SAMSystem {
         });
         this.missileVelocity = platform.missileVelocity;
     }
+    getRangeAtAzimuth(azimuthDeg) {
+        const azimuths = this.getDetectionRanges();
+        const numAzimuths = azimuths.length;
+        const azimuthIndex = Math.round(((azimuthDeg % 360) / 360) * numAzimuths) % numAzimuths;
+        return azimuths[azimuthIndex];
+    }
+    getDetectionRanges() {
+        const adjustedRanges = this.precipRangesAzimuth.map((nominalRange) => {
+            const detectionRange = this.radar.calculateDetectionRange(1.0, 1.0, nominalRange);
+            return detectionRange;
+        });
+        return adjustedRanges;
+    }
+    getAzimuthToTarget(targetPosition) {
+        const deltaX = targetPosition.x - this.position.x;
+        const deltaY = targetPosition.y - this.position.y;
+        const azimuthRad = Math.atan2(deltaY, deltaX);
+        let azimuthDeg = azimuthRad * (180 / Math.PI);
+        if (azimuthDeg < 0) {
+            azimuthDeg += 360;
+        }
+        return azimuthDeg;
+    }
     async initPrecipitationField(scenario) {
         if (scenario.environment.precipitation.enabled && scenario.precipitationFieldImage) {
             await this.radar.loadImageDataFromScenario(scenario);
@@ -87,8 +106,8 @@ export class SAMSystem {
             velocity: this.missileVelocity,
         };
     }
-    getTrackingStatus() {
-        return this.trackingStatus.status;
+    getTrackings() {
+        return this.trackedTargets;
     }
     /**
      * Calculate detection range for a target with given RCS and path attenuation
@@ -102,7 +121,7 @@ export class SAMSystem {
     }
     // Calculates nominal detection ranges over azimuth without precipitation attenuation
     calculateDetectionRanges(scenario) {
-        const samPosition = scenario.platforms.sam.position;
+        const samPosition = this.position;
         for (let i = 0; i < this.numAzimuths; i++) {
             const azimuthDeg = (i * 360) / this.numAzimuths;
             const range = this.radar.calculateDetectionRange(1.0, // nominal RCS
@@ -116,7 +135,7 @@ export class SAMSystem {
      * use radar.calculateDetectionRange(rcs, range) when applying a specific RCS
      */
     calculateDetectionRangesWithSampling(scenario) {
-        const samPosition = scenario.platforms.sam.position;
+        const samPosition = this.position;
         for (let i = 0; i < this.numAzimuths; i++) {
             const azimuthDeg = (360 / this.numAzimuths) * i;
             const range = this.radar.calculateDetectionRangeWithPrecipitationFieldSampling(1.0, // nominal RCS

@@ -345,9 +345,12 @@ async function stepSimulation() {
   
   try {
     const response = await appState.simulationManager.step();
+    const timeElapsed = appState.simulationManager.state.timeElapsed;
+    const simulationComplete = appState.simulationManager.state.simulationComplete;
+
     
     if (response) {
-      const { timeElapsed, simulationComplete, state } = response;
+      const { state } = response;
       
       // Update time display
       const timeEl = document.getElementById('sim-time');
@@ -364,6 +367,18 @@ async function stepSimulation() {
     console.error('[App] Step failed:', error);
   }
 }
+
+
+/**
+ * Stop Simulation
+ */
+function pauseSimulation() {
+  if (appState.simulationManager) {
+    appState.simulationManager.pause();
+    console.log('[App] Simulation stopped by user');
+  }
+}
+
 
 /**
  * Reset simulation to initial state
@@ -397,48 +412,46 @@ async function resetSimulation() {
 /**
  * Display simulation results
  */
-function displaySimulationResults(results) {
+function displaySimulationResults(state) {
   const resultsPanel = document.getElementById('resultsPanel');
   if (!resultsPanel) return;
   
   let html = '<div class="simulation-results">';
   
-  // Outcome
-  if (results.success) {
-    html += '<div class="alert alert-success">';
-    html += '<strong>Outcome:</strong> Success! The HARM successfully neutralized the SAM system.';
-    html += '</div>';
-  } else {
-    html += '<div class="alert alert-danger">';
-    html += '<strong>Outcome:</strong> Failure. The SAM system intercepted the HARM.';
-    html += '</div>';
+  // Display summary first summary and SAM and fighter status
+  for(const sams of state.sams) {
+   const classResult = sams.state === 'destroyed' ? 'text-success' : 'text-danger';
+    html += `<h5 class="text-primary">SAM System: ${sams.id}</h5>`;
+    html += `<p class=${classResult}>Status: ${sams.state.charAt(0).toUpperCase() + sams.state.slice(1)}</p>`;
   }
-  
+  for(const fighters of state.fighters) {
+    const classResult = fighters.state === 'destroyed' ? 'text-danger' : 'text-success';
+    html += `<h5 class="text-success">Fighter Aircraft: ${fighters.id}</h5>`;
+    html += `<p class=${classResult}>Status: ${fighters.state.charAt(0).toUpperCase() + fighters.state.slice(1)}</p>`;
+  }
+
   // Missile results
-  if (results.missileResults && results.missileResults.missiles) {
-    html += '<h6 class="text-primary mt-3">Missile Results</h6>';
-    html += '<dl class="row small mb-0">';
+
+  html += '<h6 class="text-primary mt-3">Missile Results</h6>';
+  html += '<dl class="row small mb-0">';
+  
+  state.missiles.forEach(missile => {
+    const key = missile.launchedBy === 'sam' ? 'SAM Missile' : 'HARM Missile';
+    let value = `Launched at ${missile.launchTime.toFixed(2)} s`;
     
-    results.missileResults.missiles.forEach(missile => {
-      const key = missile.launchedBy === 'sam' ? 'SAM Missile' : 'HARM Missile';
-      let value = `Launched at ${missile.launchTime.toFixed(2)} s`;
-      
-      if (missile.timeOfImpact !== null) {
-        value += `, Impact at ${missile.timeOfImpact.toFixed(2)} s`;
-      }
-      
-      if (missile.impactPosition) {
-        value += `, Position: (${missile.impactPosition.x.toFixed(2)}, ${missile.impactPosition.y.toFixed(2)}) km`;
-      }
-      
-      value += `, Status: ${missile.status.charAt(0).toUpperCase() + missile.status.slice(1)}`;
-      
-      html += `<dt class="col-sm-6">${key}:</dt>`;
-      html += `<dd class="col-sm-6">${value}</dd>`;
-    });
     
-    html += '</dl>';
-  }
+    if (missile.status === 'kill') {
+      value += `, Position: (${missile.position.x.toFixed(2)}, ${missile.position.y.toFixed(2)}) km`;
+    }
+    
+    value += `, Status: ${missile.status.charAt(0).toUpperCase() + missile.status.slice(1)}`;
+    
+    html += `<dt class="col-sm-6">${key}:</dt>`;
+    html += `<dd class="col-sm-6">${value}</dd>`;
+  });
+  
+  html += '</dl>';
+  
   
   html += '</div>';
   resultsPanel.innerHTML = html;

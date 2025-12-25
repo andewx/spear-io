@@ -34,8 +34,25 @@ export class SimulationController {
         const { scenarioId, timeStep } = req.body;
         this.scenarioMeta = await storage.loadScenario(scenarioId);
         if (!this.scenarioMeta) {
-            res.status(404).json({ error: 'Scenario not found' });
+            res.status(404).json({ error: `Scenario not found: ${scenarioId}` });
             return;
+        }
+        // Get the platform objects for each SAM and Fighter in the scenario
+        for (const samPlatform of this.scenarioMeta.platforms.sams.filter(p => p.type === 'sam')) {
+            const platformData = await storage.loadSAMPlatform(samPlatform.id);
+            if (!platformData) {
+                res.status(404).json({ error: `SAM Platform not found: ${samPlatform.type}/${samPlatform.id}` });
+                return;
+            }
+            samPlatform.platform = platformData;
+        }
+        for (const fighterPlatform of this.scenarioMeta.platforms.fighters.filter(p => p.type === 'fighter')) {
+            const platformData = await storage.loadFighterPlatform(fighterPlatform.id);
+            if (!platformData) {
+                res.status(404).json({ error: `Fighter Platform not found: ${fighterPlatform.type}/${fighterPlatform.id}` });
+                return;
+            }
+            fighterPlatform.platform = platformData;
         }
         this.scenario = await Scenario.create(this.scenarioMeta, 0.5); // default timeStep 0.5s
         //return JSON response
@@ -64,10 +81,10 @@ export class SimulationController {
             while (!this.scenario.engagementComplete()) {
                 this.scenario.advanceSimulationTimeStep();
             }
-            const result = this.scenario.engagementResult();
+            const result = this.getSimulationState();
             const response = {
                 success: true,
-                data: { result: result },
+                data: { state: result },
             };
             res.json(response);
         }
@@ -102,9 +119,7 @@ export class SimulationController {
             const response = {
                 success: true,
                 data: {
-                    timeElapsed: this.scenario.getTimeElapsed(),
-                    simulationComplete,
-                    state,
+                    state: state,
                 },
             };
             res.json(response);
@@ -144,24 +159,31 @@ export class SimulationController {
      * Extract current simulation state for visualization
      */
     getSimulationState() {
-        const samPos = this.scenario.samSystem.position;
-        const fighterPos = this.scenario.fighter.position;
-        const distance = this.scenario.getDistanceSAMToFighter();
+        // For now, use first SAM and first fighter (multi-platform visualization to be implemented later)
+        const firstSAM = this.scenario.scenarioSams[0];
+        const firstFighter = this.scenario.scenarioFighters[0];
+        // Create copies of positions to avoid reference sharing
+        const samPos = { x: firstSAM.position.x, y: firstSAM.position.y };
+        const fighterPos = { x: firstFighter.position.x, y: firstFighter.position.y };
+        // Calculate distance
+        const dx = fighterPos.x - samPos.x;
+        const dy = fighterPos.y - samPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
         // Get detection range at fighter's current position/azimuth
         const azimuth = this.calculateAzimuth(samPos, fighterPos);
-        const fighterRCS = this.scenario.fighter.getRCSFromPosition(fighterPos, samPos, azimuth);
-        const samRangeAtAzimuth = this.scenario.getRangeAtAzimuth(azimuth);
-        const detectionRange = this.scenario.samSystem.calculateDetectionRange(fighterRCS, this.scenario.samSystem.pulseMode.numPulses, samRangeAtAzimuth);
-        // Get missile states
+        const fighterRCS = firstFighter.getRCSFromPosition(fighterPos, samPos, azimuth);
+        // TODO: Implement getRangeAtAzimuth for multi-platform scenarios
+        const detectionRange = firstSAM.calculateDetectionRange(fighterRCS, firstSAM.pulseMode.numPulses, firstSAM.nominalRange);
+        // Get missile states - create copies of all position objects
         const missiles = this.scenario.getMissiles().map((missile, index) => ({
             id: missile.launchedBy === 'sam' ? `SAM-${missile.timeOfLaunch}` : `HARM-${missile.timeOfLaunch}`,
             launchedBy: missile.launchedBy,
             launchTime: missile.timeOfLaunch,
-            position: missile.position,
+            position: { x: missile.position.x, y: missile.position.y },
             heading: missile.heading,
             velocity: missile.velocity,
             status: missile.status,
-            targetPosition: missile.target.position,
+            targetPosition: { x: missile.target.position.x, y: missile.target.position.y },
         }));
         return {
             timeElapsed: this.scenario.getTimeElapsed(),
@@ -175,20 +197,19 @@ export class SimulationController {
                     maxY: this.scenarioMeta.grid.height / 2,
                 },
             },
-            sam: {
-                position: samPos,
-                state: this.scenario.samSystem.state,
-                properties: {
-                    nominalRange: this.scenario.samSystem.nominalRange,
-                    memr: this.scenario.samSystem.properties.memr,
-                },
-            },
-            fighter: {
-                position: fighterPos,
-                heading: this.scenario.fighter.heading,
-                velocity: this.scenario.fighter.velocity,
-                state: this.scenario.fighter.state,
-            },
+            sams: this.scenario.scenarioSams.map(sam => ({
+                id: sam.id,
+                position: { x: sam.position.x, y: sam.position.y },
+                memr: sam.properties.memr,
+                state: sam.state,
+            })),
+            fighters: this.scenario.scenarioFighters.map(fighter => ({
+                id: fighter.id,
+                position: { x: fighter.position.x, y: fighter.position.y },
+                heading: fighter.heading,
+                velocity: fighter.velocity,
+                state: fighter.state,
+            })),
             missiles,
             distance,
             detectionRange,
@@ -206,6 +227,11 @@ export class SimulationController {
     }
     async reset(req, res) {
         try {
+            this.scenarioMeta = await storage.loadScenario(this.scenarioMeta.id);
+            if (!this.scenarioMeta) {
+                res.status(404).json({ error: `Scenario not found: ${this.scenarioMeta.id}` });
+                return;
+            }
             this.scenario = await Scenario.create(this.scenarioMeta, 0.5); // default timeStep 0.5s
             const response = {
                 success: true,
@@ -228,7 +254,13 @@ export class SimulationController {
      */
     async getRangesProfile(req, res) {
         try {
-            const ranges = this.scenario.getDetectionRanges(this.scenario.getNominalRanges(), 1.0, 1.0, "incoherent");
+            // TODO: Implement getRanges logic for multi-platform scenarios
+            // For now, return first SAM's ranges
+            const firstSAM = this.scenario.scenarioSams[0];
+            if (!firstSAM) {
+                throw new Error('No SAM system found in scenario');
+            }
+            const ranges = firstSAM.getRangesAzimuth();
             console.log(`SAM Ranges Profile Request Received${ranges}\n`);
             const response = {
                 success: true,
@@ -248,7 +280,13 @@ export class SimulationController {
     }
     async getPrecipRangesProfile(req, res) {
         try {
-            const ranges = this.scenario.getDetectionRanges(this.scenario.getPrecipitationRanges(), 1.0, 1.0, "incoherent");
+            // TODO: Implement getPrecipitationRanges logic for multi-platform scenarios
+            // For now, return first SAM's precipitation ranges
+            const firstSAM = this.scenario.scenarioSams[0];
+            if (!firstSAM) {
+                throw new Error('No SAM system found in scenario');
+            }
+            const ranges = firstSAM.precipRangesAzimuth;
             const response = {
                 success: true,
                 data: { ranges: ranges },

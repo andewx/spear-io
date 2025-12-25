@@ -21,7 +21,7 @@
       "configId": "fighter-f16",
       "position": {
         "x": -150,
-        "y": 250
+        "y": 0
       },
       "heading": 0,
       "flightPath": {
@@ -34,12 +34,12 @@
       "enabled": true,
       "nominalRainRate": 10,
       "nominalCellSize": 25,
-      "nominalCoverage": 0.4,
+      "nominalCoverage": 0.7,
       "alpha": 0.35,
       "maxRainRateCap": 35,
       "sigmoidK": 7
     }
   },
-  "precipitationFieldImage": "precip_scenario-04-custom_1766351013277.png",
-  "precipitationFieldOverlay": "precip_overlay_scenario-04-custom_1766351013301.png"
+  "precipitationFieldImage": "precip_scenario-04-custom_1766464592785.png",
+  "precipitationFieldOverlay": "precip_overlay_scenario-04-custom_1766464592809.png"
 }

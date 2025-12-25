@@ -14,17 +14,20 @@ interface IPulseIntegrationMode {
     numPulses: number;
     mode: TPulseIntegrationMode;
 }
-type TrackingStatus = {
+type Track = {
+    id: string;
+    acquisitionTime: number;
+    distance: number;
+    azimuth: number;
     status: 'tracking' | 'not_tracking' | 'lost';
     timeElapsedTracking: number;
-    preferredTrackingMode: 'auto' | 'manual';
 };
 export declare class SAMSystem {
     readonly id: string;
     readonly name: string;
     readonly properties: ISAMSystem;
     pulseMode: IPulseIntegrationMode;
-    trackingStatus: TrackingStatus;
+    trackedTargets: Map<string, Track>;
     readonly radar: Radar;
     state: 'active' | 'destroyed';
     readonly trackingRadar: Radar;
@@ -32,17 +35,20 @@ export declare class SAMSystem {
     readonly nominalRange: number;
     readonly nominalRangesAzimuth: Array<number>;
     readonly precipRangesAzimuth: Array<number>;
-    readonly numAzimuths = 108;
+    readonly numAzimuths = 216;
     launchIntervalSec: number;
     position: IPosition2D;
     status: SAMStatus;
     constructor(platform: ISAMSystem, scenario: IScenario);
+    getRangeAtAzimuth(azimuthDeg: number): number;
+    getDetectionRanges(): Array<number>;
+    getAzimuthToTarget(targetPosition: IPosition2D): number;
     initPrecipitationField(scenario: IScenario): Promise<void>;
     getMissileProperties(): {
         memr: number;
         velocity: number;
     };
-    getTrackingStatus(): string;
+    getTrackings(): Map<string, Track>;
     /**
      * Calculate detection range for a target with given RCS and path attenuation
      *

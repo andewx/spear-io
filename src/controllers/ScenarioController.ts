@@ -7,7 +7,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import * as storage from '../services/fileStorage.js';
 import { sendView, sendViewOrJSON } from '../services/templateRenderer.js';
-import type { IScenario, TAPIResponse } from '../types/index.js';
+import type { IScenario, IScenarioPlatform, TAPIResponse } from '../types/index.js';
 
 export class ScenarioController {
   /**
@@ -74,16 +74,29 @@ export class ScenarioController {
    */
   async create(req: Request, res: Response): Promise<void> {
     try {
-      let data = req.body as any;
-      const scenario = req.body as IScenario;
+      const data = req.body as any;
+      
+      // Parse platform arrays from form data
+      const scenario = await this.parseScenarioFromFormData(data);
 
-      if (data.environment.precipitation?.enabled === 'on' || data.environment.precipitation?.enabled === true) {
-        scenario.environment.precipitation.enabled = true;
+      //Load platforms for each platform entry and attach the object to the platform
+      for (const sam of scenario.platforms.sams) {
+        const samConfig = await storage.loadSAMPlatform(sam.id);
+        if (!samConfig) {
+          throw new Error(`SAM platform not found: ${sam.id}`);
+        }
+        sam.platform = samConfig;
+      }
+      for (const fighter of scenario.platforms.fighters) {
+        fighter.heading = Math.PI/180 * fighter.heading; // Convert to radians
+        const fighterConfig = await storage.loadFighterPlatform(fighter.id);
+        if (!fighterConfig) {
+          throw new Error(`Fighter platform not found: ${fighter.id}`);
+        }
+        fighter.platform = fighterConfig;
       }
 
-      //log data and scenario data for debugging:
-      console.log('Create scenario request data:', data);
-      console.log('Create scenario request scenario:', scenario);
+
 
       // Generate ID and timestamps if not provided
       if (!scenario.id) {
@@ -91,6 +104,7 @@ export class ScenarioController {
       }
       scenario.createdAt = new Date();
       scenario.updatedAt = new Date();
+
 
       await storage.saveScenario(scenario);
 
@@ -111,16 +125,32 @@ export class ScenarioController {
   async update(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const scenario = req.body as IScenario;
-      let data = req.body as any;
+      const data = req.body as any;
+
+      // Parse platform arrays from form data
+      const scenario = await this.parseScenarioFromFormData(data);
+
+
+      //Load platforms for each platform entry and attach the object to the platform
+      for (const sam of scenario.platforms.sams) {
+        const samConfig = await storage.loadSAMPlatform(sam.id);
+        if (!samConfig) {
+          throw new Error(`SAM platform not found: ${sam.id}`);
+        }
+        sam.platform = samConfig;
+      }
+      for (const fighter of scenario.platforms.fighters) {
+
+        const fighterConfig = await storage.loadFighterPlatform(fighter.id);
+        if (!fighterConfig) {
+          throw new Error(`Fighter platform not found: ${fighter.id}`);
+        }
+        fighter.platform = fighterConfig;
+      }
+
 
       // Ensure ID matches and update timestamp
-      scenario.id = id;
       scenario.updatedAt = new Date();
-
-       if (data.environment.precipitation?.enabled === 'on' || data.environment.precipitation?.enabled === true) {
-        scenario.environment.precipitation.enabled = true;
-      }
 
       await storage.saveScenario(scenario);
 
@@ -162,6 +192,8 @@ export class ScenarioController {
     }
   }
 
+
+
   /**
    * Error handler
    */
@@ -171,5 +203,104 @@ export class ScenarioController {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
     res.status(500).json(response);
+  }
+
+
+
+  /**
+   * Parse scenario data from form submission
+   * Handles array-based platform structure from form fields
+   */
+  private async parseScenarioFromFormData(data: any): Promise<IScenario> {
+    // Parse SAM platforms
+    const sams: IScenarioPlatform[] = [];
+    if (data.platforms?.sams) {
+      for (const [indexStr, samData] of Object.entries(data.platforms.sams)) {
+        if (typeof samData === 'object' && samData !== null) {
+          const configId = (samData as any).id as string;
+          const samConfig = await storage.loadSAMPlatform(configId);
+          if (!samConfig) {
+            throw new Error(`SAM platform not found: ${configId}`);
+          }
+          
+          sams.push({
+            id: (samData as any).id || `sam-${indexStr}`,
+            configId: configId,
+            type: 'sam',
+            platform: samConfig,
+            position: {
+              x: parseFloat((samData as any).position?.x || 0),
+              y: parseFloat((samData as any).position?.y || 0),
+            },
+            velocity: parseFloat((samData as any).velocity || 0),
+            heading: parseFloat((samData as any).heading || 0),
+          });
+        }
+      }
+    }
+
+    // Parse Fighter platforms
+    const fighters: IScenarioPlatform[] = [];
+    if (data.platforms?.fighters) {
+      for (const [indexStr, fighterData] of Object.entries(data.platforms.fighters)) {
+        if (typeof fighterData === 'object' && fighterData !== null) {
+          const configId = (fighterData as any).id as string;
+          const fighterConfig = await storage.loadFighterPlatform(configId);
+          if (!fighterConfig) {
+            throw new Error(`Fighter platform not found: ${configId}`);
+          }
+          
+          fighters.push({
+            id: (fighterData as any).id || `fighter-${indexStr}`,
+            configId: configId,
+            type: 'fighter',
+            platform: fighterConfig,
+            position: {
+              x: parseFloat((fighterData as any).position?.x || 0),
+              y: parseFloat((fighterData as any).position?.y || 0),
+            },
+            velocity: parseFloat((fighterData as any).velocity || 0.8),
+            heading: parseFloat((fighterData as any).heading || 180),
+            flightPath: (fighterData as any).flightPath || 'straight',
+          });
+        }
+      }
+    }
+
+    // Parse precipitation config
+    const precipitationEnabled = data.environment?.precipitation?.enabled === 'on' 
+      || data.environment?.precipitation?.enabled === true;
+
+    const scenario: IScenario = {
+      id: data.id,
+      name: data.name,
+      precipitationFieldImage: data.precipitationFieldImage || undefined,
+      precipitationFieldOverlay: data.precipitationFieldOverlay || undefined,
+      precipitationFieldJet: data.precipitationFieldJet || undefined,
+      description: data.description,
+      grid: {
+        width: parseFloat(data.grid?.width || 800),
+        height: parseFloat(data.grid?.height || 450),
+        resolution: parseFloat(data.grid?.resolution || 2),
+      },
+      timeStep: parseFloat(data.timeStep || 0.5),
+      platforms: {
+        sams,
+        fighters,
+      },
+      environment: {
+        precipitation: {
+          enabled: precipitationEnabled,
+          nominalRainRate: parseFloat(data.environment?.precipitation?.nominalRainRate || 10),
+          nominalCellSize: parseFloat(data.environment?.precipitation?.nominalCellSize || 12),
+          nominalCoverage: parseFloat(data.environment?.precipitation?.nominalCoverage || 0.35),
+          alpha: parseFloat(data.environment?.precipitation?.alpha || 0.1),
+          maxRainRateCap: parseFloat(data.environment?.precipitation?.maxRainRateCap || 35),
+          sigmoidK: parseFloat(data.environment?.precipitation?.sigmoidK || 10),
+        },
+      },
+    };
+
+    return scenario;
   }
 }

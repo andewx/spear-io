@@ -11,11 +11,18 @@ class RadarVisualization {
     this.fighter = null;
     this.results = null;
     this.precipitationImage = null;
-    this.simulationState = null; // Runtime simulation state
+    this.precipImageType = 'normal'; // 'normal', 'overlay', or 'jet'
     this.rangeData = null;
     this.currentZoom = 1.0;
     this.panOffset = { x: 0, y: 0 };
     this.maxZoom = 5.0;
+    
+    // Fighter interaction state
+    this.selectedFighter = null;
+    this.selectedFighterIndex = -1;
+    this.isDraggingFighter = false;
+    this.isAdjustingHeading = false;
+    this.interactionMode = 'pan'; // 'pan' or 'edit'
     
     // Aspect ratio constant (16:9)
     this.ASPECT_RATIO = 16 / 9;
@@ -36,8 +43,6 @@ class RadarVisualization {
       console.error("Failed to parse range profile data:", e);
       this.rangeData = JSON.parse(JSON.stringify(rangeData.ranges));
     }
-    this.render();
-    // Implementation of range profile rendering goes here
   }
 
   renderRangeProfile(){
@@ -45,7 +50,7 @@ class RadarVisualization {
 
     const ctx = this.ctx;
     // Example: Draw range profile as a simple line graph at the bottom of the canvas
-    const padding = 20;
+    const padding = 0;
     const graphHeight = 100;
     const graphWidth = this.canvas.width - 2 * padding;
 
@@ -122,11 +127,6 @@ class RadarVisualization {
   }
 
 
-  setScenarioData(state) {
-    this.simulationState = state;
-    this.render();
-  }
-
  setScenario(scenario) {
     this.scenario = scenario;
     this.precipitationImage = null;
@@ -134,6 +134,7 @@ class RadarVisualization {
     // Load precipitation field image if available
     if (scenario.precipitationFieldImage) {
        this.loadPrecipitationImage(scenario.precipitationFieldImage);
+       this.render();
     } else {
       this.render();
     }
@@ -141,21 +142,50 @@ class RadarVisualization {
   
   /**
    * Load precipitation field JPEG image
+   * @param {string} filename - Base filename (without suffix)
+   * @param {string} imageType - 'normal', 'overlay', or 'jet'
    */
-  loadPrecipitationImage(filename) {
-    console.log('Loading precipitation image:', filename);
+  loadPrecipitationImage(filename, imageType = null) {
+    if (imageType) {
+      this.precipImageType = imageType;
+    }
+    
+    // Get the base filename without extension and any existing suffix
+    let baseName = filename.replace(/\.(jpg|jpeg|png)$/i, '');
+    baseName = baseName.replace(/_(normal|overlay|jet)$/, '');
+    
+    // Construct filename with appropriate suffix
+    let targetFilename;
+    if (this.precipImageType === 'overlay') {
+      targetFilename = this.scenario.precipitationFieldOverlay;
+    } else if (this.precipImageType === 'jet') {
+      targetFilename = this.scenario.precipitationFieldJet;
+    } else {
+      targetFilename = this.scenario.precipitationFieldImage;
+    }
+    
+    console.log('Loading precipitation image:', targetFilename, 'type:', this.precipImageType);
     const img = new Image();
     img.onload = () => {
-      console.log('Precipitation image loaded:', filename);
+      console.log('Precipitation image loaded:', targetFilename);
       this.precipitationImage = img;
       this.render();
     };
     img.onerror = () => {
-      console.error('Failed to load precipitation image:', filename);
+      console.error('Failed to load precipitation image:', targetFilename);
       this.precipitationImage = null;
       this.render();
     };
-    img.src = `/api/synthetic/precipitation/${filename}`;
+    img.src = `/api/synthetic/precipitation/${targetFilename}`;
+  }
+  
+  /**
+   * Set precipitation image type and reload
+   */
+  setPrecipImageType(imageType) {
+    if (!this.scenario || !this.scenario.precipitationFieldImage) return;
+    this.precipImageType = imageType;
+    this.loadPrecipitationImage(this.scenario.precipitationFieldImage, imageType);
   }
 
   setSAM(sam) {
@@ -173,17 +203,13 @@ class RadarVisualization {
     this.render();
   }
 
-  setSimulationState(state) {
-    this.simulationState = state;
-    this.render();
-  }
-
   /**
    * Convert grid coordinates (km) to canvas pixels grid coordinates assume (0,0) is center of image
    */
   gridToCanvas(x, y) {
     if (!this.scenario) return { x: 0, y: 0 };
     
+   
     const padding = 0;
     const availableWidth = this.canvas.width - 2 * padding;
     const availableHeight = this.canvas.height - 2 * padding;
@@ -222,6 +248,87 @@ class RadarVisualization {
   }
 
   /**
+   * Convert canvas pixels to grid coordinates (km)
+   * Inverse of gridToCanvas, accounting for zoom and pan
+   */
+  canvasToGrid(canvasX, canvasY) {
+    //if (!this.scenario) return { x: 0, y: 0 };
+    
+
+    // Reverse zoom and pan transformations
+    const x = (canvasX - this.panOffset.x) / this.currentZoom;
+    const y = (canvasY - this.panOffset.y) / this.currentZoom;
+    
+    const padding = 0;
+    const availableWidth = this.canvas.width - 2 * padding;
+    const availableHeight = this.canvas.height - 2 * padding;
+    
+    const scaleX = availableWidth / this.scenario.grid.width;
+    const scaleY = availableHeight / this.scenario.grid.height;
+    const scale = Math.min(scaleX, scaleY);
+
+    const centerX = (this.scenario.grid.width / 2) * scale;
+    const centerY = (this.scenario.grid.height / 2) * scale;
+    
+    return {
+      x: (x - padding - centerX) / scale,
+      y: -(y - padding - centerY) / scale, // Flip Y axis back
+    };
+  }
+
+  /**
+   * Check if mouse click is on a fighter
+   * Returns {fighter, index} or null
+   */
+  getFighterAtPosition(canvasX, canvasY) {
+    if (!appState.simulationManager.state.fighters) return null;
+    
+    const fighters = appState.simulationManager.state.fighters;
+    const clickRadius = 15; // pixels (in screen space)
+    
+    for (let i = 0; i < fighters.length; i++) {
+      const fighter = fighters[i];
+      const pos = this.gridToCanvas(fighter.position.x, fighter.position.y);
+      
+      // Apply zoom/pan transformation to fighter position to get screen coordinates
+      const screenX = pos.x * this.currentZoom + this.panOffset.x;
+      const screenY = pos.y * this.currentZoom + this.panOffset.y;
+
+      
+      // Calculate distance in screen space
+      const dx = canvasX - screenX;
+      const dy = canvasY - screenY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= clickRadius * this.currentZoom) {
+        return { fighter, index: i};
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if click is on heading knob
+   */
+  isClickOnHeadingKnob(canvasX, canvasY) {
+    if (!this.selectedFighter) return false;
+    
+    const pos = this.gridToCanvas(this.selectedFighter.position.x, this.selectedFighter.position.y);
+    
+    // Apply zoom/pan transformation to get screen coordinates
+    const screenX = pos.x * this.currentZoom + this.panOffset.x;
+    const screenY = pos.y * this.currentZoom + this.panOffset.y;
+    
+    const knobRadius = 30 * this.currentZoom;
+    const dx = canvasX - screenX;
+    const dy = canvasY - screenY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    return distance >= knobRadius - 10 * this.currentZoom && distance <= knobRadius + 10 * this.currentZoom;
+  }
+
+  /**
    * Main render function
    */
   render() {
@@ -248,7 +355,7 @@ class RadarVisualization {
     }
 
     // Render precipitation field
-    if (this.scenario.precipitationField || this.scenario.precipitationFieldOverlay) {
+    if (this.scenario.precipitationFieldImage || this.scenario.precipitationFieldOverlay) {
       this.renderPrecipitationImage();
     }
 
@@ -256,38 +363,31 @@ class RadarVisualization {
     this.renderRangeRings();
     
     // Render SAM (use simulation state if available, otherwise scenario config)
-    if (this.scenario.platforms?.sam) {
+    if (appState.simulationManager.state.sams) {
       this.renderSAM();
     }
     
     // Render fighter (use simulation state if available, otherwise scenario config)
-    if (this.scenario.platforms?.fighter) {
+    if (appState.simulationManager.state.fighters) {
       this.renderFighter();
     }
 
     // Render missiles if simulation state has active missiles
-    if (this.simulationState?.missiles) {
-      this.simulationState.missiles.forEach(missile => {
-        if (missile.status === 'inflight') {
+    if (appState.simulationManager.state.missiles) {
+      appState.simulationManager.state.missiles.forEach(missile => {
+        if (missile.status === 'active' || missile.status === 'inflight') {
           this.renderMissile(missile);
         }
       });
     }
-    
-    // Render ranges if results available
-    if (this.results && this.sam) {
-      this.renderRanges();
-    }
-    
+       
   
     this.renderRangeProfile();
 
     //3. Restore to default state
     ctx.restore();
 
-    // Draw overlay elements
-  
-    this.renderTelemetry();
+    // Draw any UI overlays here (if needed)
   }
 
 
@@ -309,35 +409,46 @@ class RadarVisualization {
     ctx.restore();
   }
 
+
+
   renderSAM() {
-    if (!this.scenario.platforms?.sam?.position) {
-      console.warn('SAM position not found in scenario');
+    if (!appState.simulationManager.state.sams || appState.simulationManager.state.sams.length === 0) {
+      console.warn('No SAMs found in scenario');
       return;
     }
-    // Use simulation state position if available, otherwise scenario initial position
-    const position = this.simulationState?.sam?.position || this.scenario.platforms.sam.position;
-    const heading = this.simulationState?.sam?.heading || this.scenario.platforms.sam.heading || 0;
-    
-    const pos = this.gridToCanvas(
-      position.x,
-      position.y
-    );
-    const ctx = this.ctx;
-    
-    // SAM marker (red triangle)
-    ctx.fillStyle = '#df2222ab';
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y - 10);
-    ctx.lineTo(pos.x - 8, pos.y + 8);
-    ctx.lineTo(pos.x + 8, pos.y + 8);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Label  
-    ctx.fillStyle = '#ff4444ab';
-    ctx.font = '18px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('SAM', pos.x, pos.y + 25);
+
+
+    for (const sam of appState.simulationManager.state.sams) {
+        // Use simulation state position if available, otherwise scenario initial position
+        const position = sam.position;
+
+        if (!position) {
+          console.warn('SAM position not found in scenario');
+          return;
+        }
+
+        const pos = this.gridToCanvas(
+          position.x,
+          position.y
+        );
+        const ctx = this.ctx;
+        
+        // SAM marker (red triangle)
+        ctx.fillStyle = '#df2222ab';
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y - 10);
+        ctx.lineTo(pos.x - 8, pos.y + 8);
+        ctx.lineTo(pos.x + 8, pos.y + 8);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Label  
+        ctx.fillStyle = '#ff4444ab';
+        ctx.font = '18px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('SAM', pos.x, pos.y + 25);
+      }
+   
   }
 
   renderEmptyState() {
@@ -381,8 +492,8 @@ class RadarVisualization {
     const ctx = this.ctx;
 
     const ranges = [10, 20, 40, 80, 160, 320, 640]; // in km
-
-    const centerPosition = this.scenario.platforms?.sam?.position;
+    const firstSAM = appState.simulationManager.state.sams ? appState.simulationManager.state.sams[0] : null;
+    const centerPosition = firstSAM ? firstSAM.position : this.scenario.platforms?.sam?.position;
     if (!centerPosition) return;
 
     const center = this.gridToCanvas(centerPosition.x, centerPosition.y);
@@ -408,6 +519,8 @@ class RadarVisualization {
 
 
   }
+
+
 
   /**
    * Render precipitation field image as background
@@ -471,29 +584,114 @@ class RadarVisualization {
   }
 
   renderFighter() {
-    if (!this.scenario.platforms?.fighter?.position) {
+    if (!appState.simulationManager.state.fighters) {
       console.warn('Fighter position not found in scenario');
       return;
     }
+
+    for(let i = 0; i < appState.simulationManager.state.fighters.length; i++) {
+        const fighter = appState.simulationManager.state.fighters[i];
+        const isSelected = this.selectedFighterIndex === i;
+        let position = fighter.position;
+        let headingDegrees = fighter.heading * 180 / Math.PI;
+        let heading = fighter.heading;
+        if(isSelected){
+          position = this.selectedFighter.position;
+          headingDegrees = this.selectedFighter.heading * 180 / Math.PI;
+          heading = this.selectedFighter.heading;
+             console.log(`Rendering Fighter at Degrees: ${headingDegrees} Radians: ${heading}`);
+        }
+
     
-    // Use simulation state position if available, otherwise scenario initial position
-    const position = this.simulationState?.fighter?.position || this.scenario.platforms.fighter.position;
-    const heading = this.simulationState?.fighter?.heading || this.scenario.platforms.fighter.heading || 0;
+     
+
+        if (!position) {
+          console.warn('Fighter position not found in scenario');
+          return;
+        } 
+
+        
+        const pos = this.gridToCanvas(position.x, position.y);
+        const ctx = this.ctx;
+
+        //Notes: Later draw SVG depending on fighter state (normal, launching HARM, damaged, etc)
+        
+        // Fighter marker (blue circle) - highlight if selected
+        ctx.fillStyle = isSelected ? '#3a7ae0' : '#195abbd4';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, isSelected ? 14 : 12, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Add selection ring if selected
+        if (isSelected) {
+          ctx.strokeStyle = '#3a7ae0';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, 18, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        
+        // Draw heading indicator (heading is in radians)
+        // Canvas Y increases downward, so negate sin to match standard coordinate system
+        const indicatorLength = 20;
+        ctx.strokeStyle = isSelected ? '#ffffff' : '#aaaaaa';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        ctx.lineTo(
+          pos.x + Math.cos(heading) * indicatorLength,
+          pos.y - Math.sin(heading) * indicatorLength
+        );
+        ctx.stroke();
+        
+        // Label
+        ctx.fillStyle = isSelected ? '#ffffff' : '#214f94ff';
+        ctx.font = '12px Sans-Serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Fighter', pos.x, pos.y + 30);
+        
+        // Render heading control knob if selected
+        if (isSelected && this.interactionMode === 'edit') {
+          this.renderHeadingKnob(pos.x, pos.y, headingDegrees);
+        }
+    }
     
-    const pos = this.gridToCanvas(position.x, position.y);
+
+  }
+
+  /**
+   * Render heading control knob for selected fighter
+   * @param {number} headingDegrees - Heading in degrees for display
+   */
+  renderHeadingKnob(centerX, centerY, headingDegrees) {
     const ctx = this.ctx;
+    const knobRadius = 30;
     
-    // Fighter marker (blue circle)
-    ctx.fillStyle = '#1d375dc1';
+    // Draw control circle
+    ctx.strokeStyle = '#3a7ae0';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
     ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, knobRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Draw heading handle (convert degrees to radians)
+    // Canvas Y increases downward, so negate sin to match standard coordinate system
+    const headingRadians = headingDegrees * Math.PI / 180;
+    const handleX = centerX + Math.cos(headingRadians) * knobRadius;
+    const handleY = centerY - Math.sin(headingRadians) * knobRadius;
+    
+    ctx.fillStyle = '#3a7ae0';
+    ctx.beginPath();
+    ctx.arc(handleX, handleY, 6, 0, Math.PI * 2);
     ctx.fill();
     
-    // Label
-    ctx.fillStyle = '#1d375dbc';
-    ctx.font = '12px Sans-Serif';
+    // Draw heading value
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Fighter', pos.x, pos.y + 25);
+    ctx.fillText(`${Math.round(headingDegrees)}°`, centerX, centerY - knobRadius - 10);
   }
 
   renderMissile(missile) {
@@ -501,7 +699,7 @@ class RadarVisualization {
     const ctx = this.ctx;
     
     // Determine color based on missile type
-    const color = missile.type === 'SAM' ? '#88ffd9a9' : '#88ff88b6'; // Red for SAM, green for HARM
+    const color = missile.launchedBy === 'sam' ? '#c88964d6' : '#0da9e2d8'; // Red for SAM, green for HARM
     
     // Draw missile as small diamond
     ctx.fillStyle = color;
@@ -536,31 +734,22 @@ class RadarVisualization {
   }
 
   renderRanges() {
-    if (!this.scenario.platforms?.sam?.position) {
+   
+    // Render ranges for the first SAM only for now
+    if (!appState.simulationManager.state.sams || appState.simulationManager.state.sams.length === 0) {
+      console.warn('No SAMs found in scenario for range rendering');
       return;
     }
     
+    const samState = appState.simulationManager.state.sams[0]; 
     const samPos = this.gridToCanvas(
-      this.scenario.platforms.sam.position.x,
-      this.scenario.platforms.sam.position.y
+      samState.position.x,
+      samState.position.y
     );
     const ctx = this.ctx;
     
-    // Detection range (yellow, semi-transparent)
-    if (this.results.detectionRange) {
-      const detectionRadius = this.kmToPixels(this.results.detectionRange);
-      ctx.strokeStyle = 'rgba(255, 255, 100, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(samPos.x, samPos.y, detectionRadius, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      ctx.fillStyle = 'rgba(255, 255, 100, 0.1)';
-      ctx.fill();
-    }
-    
     // MEMR circle (red, semi-transparent)
-    if (this.sam.memr) {
+    if (samState.memr) {
       const memrRadius = this.kmToPixels(this.sam.memr);
       ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
       ctx.lineWidth = 2;
@@ -573,109 +762,5 @@ class RadarVisualization {
       ctx.fillStyle = 'rgba(255, 100, 100, 0.24)';
       ctx.fill();
     }
-  }
-
-  renderTelemetry() {
-    if (!this.scenario) return;
-    
-    const ctx = this.ctx;
-    const padding = 10;
-    const lineHeight = 18;
-    const boxWidth = 280;
-    const x = this.canvas.width - boxWidth - padding;
-    let y = this.canvas.height - padding;
-    
-    // Collect telemetry data
-    const data = [];
-    let scenarioName = this.scenario.name.length > 25 ? this.scenario.name.substring(0, 22) + '...' : this.scenario.name;
-    
-    // Scenario info
-    data.push(`SCENARIO: ${scenarioName}`);
-    data.push(`Grid: ${this.scenario.grid.width}×${this.scenario.grid.height} km`);
-    
-    // Simulation time
-    if (this.simulationState) {
-      data.push(`Time: ${this.simulationState.timeElapsed.toFixed(1)}s`);
-    }
-    
-    // SAM info
-    if (this.scenario.platforms?.sam) {
-      let sam = this.scenario.platforms.sam;
-      let samState = this.simulationState?.sam;
-
-      //truncate the sam name to 25 characters if more than 25 add ...
-      let samName = sam.configId.length > 20 ? sam.configId.substring(0, 22) + '...' : sam.configId;
-      
-      data.push(`SAM: ${samName}`);
-      if (samState) {
-        data.push(`  Pos: (${samState.position.x.toFixed(1)}, ${samState.position.y.toFixed(1)}) km`);
-        data.push(`  Status: ${samState.status}`);
-      } else {
-        data.push(`  Pos: (${sam.position.x}, ${sam.position.y}) km`);
-      }
-      if (this.sam?.memr) {
-        data.push(`  MEMR: ${this.sam.memr} km`);
-      }
-    }
-    
-    // Fighter info
-    if (this.scenario.platforms?.fighter) {
-      const fighter = this.scenario.platforms.fighter;
-      const fighterState = this.simulationState?.fighter;
-      
-      data.push(`Fighter: ${fighter.configId}`);
-      if (fighterState) {
-        data.push(`  Pos: (${fighterState.position.x.toFixed(1)}, ${fighterState.position.y.toFixed(1)}) km`);
-        data.push(`  Vel: ${(Math.sqrt(fighterState.velocity.x**2 + fighterState.velocity.y**2) * 3600).toFixed(0)} km/h`);
-        data.push(`  Status: ${fighterState.status}`);
-      } else {
-        data.push(`  Pos: (${fighter.position.x}, ${fighter.position.y}) km`);
-      }
-      data.push(`  Path: ${fighter.flightPath?.type || 'N/A'}`);
-    }
-    
-    // Missiles info
-    if (this.simulationState?.missiles && this.simulationState.missiles.length > 0) {
-      const inflightMissiles = this.simulationState.missiles.filter(m => m.status === 'inflight');
-      if (inflightMissiles.length > 0) {
-        data.push(`Missiles: ${inflightMissiles.length} inflight`);
-        inflightMissiles.forEach(missile => {
-          const tof = (this.simulationState.timeElapsed - missile.launchTime).toFixed(1);
-          data.push(`  ${missile.type} (t=${tof}s)`);
-        });
-      }
-    }
-    
-    // Environment info
-    if (this.scenario.environment?.precipitation?.enabled) {
-      const precip = this.scenario.environment.precipitation;
-      data.push(`Precipitation: ENABLED`);
-      data.push(`  Rate: ${precip.nominalRainRate} mm/hr`);
-      data.push(`  Cell Size: ${precip.nominalCellSize} km`);
-    } else {
-      data.push(`Precipitation: CLEAR`);
-    }
-    
-    // Calculate box height
-    const boxHeight = data.length * lineHeight + padding * 2;
-    y = y - boxHeight;
-    
-    // Draw semi-transparent background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(x, y, boxWidth, boxHeight);
-    
-    // Draw border
-    ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, boxWidth, boxHeight);
-    
-    // Draw telemetry text
-    ctx.fillStyle = '#6e7579ff';
-    ctx.font = '11px "Calibri", monospace';
-    ctx.textAlign = 'left';
-    
-    data.forEach((line, i) => {
-      ctx.fillText(line, x + padding, y + padding + (i + 1) * lineHeight);
-    });
   }
 }

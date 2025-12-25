@@ -3,7 +3,7 @@
  * Represents fighter aircraft with multi-aspect RCS and HARM capability
  */
 
-import type { IFighterPlatform, IRCSProfile } from '../types/index.js';
+import type { IFighterPlatform, IRCSProfile, IScenarioPlatform } from '../types/index.js';
 import type { IPosition2D } from '../types/index.js';
 
 type TFighterStatus = {
@@ -12,7 +12,7 @@ type TFighterStatus = {
 }
 
 export class Fighter {
-  public readonly id: string;
+  public id: string;
   public readonly type: IFighterPlatform['type'];
   public  position: IPosition2D;
   public  velocity: number;
@@ -21,17 +21,22 @@ export class Fighter {
   public readonly harmRange: number;
   public readonly launchPreference: IFighterPlatform['harmParams']['launchPreference'];
   public readonly memrRatio?: number;
-  public heading: number;
+  public heading: number;   // assume this is always in radians for internal calculations
   public launchedHARM: boolean = false;
   public launchTime: number | null = null;
-  public missilesRemaining: number = 1; // Assume 1 HARM for now
+  public missilesRemaining: number = 2; // Assume 1 HARM for now
   public state: 'active' | 'destroyed';
   public maneuvers: 'none' | 'evasive';
 
-  constructor(platform: IFighterPlatform, position: IPosition2D, heading: number) {
-    this.id = platform.id;
-    this.type = platform.type;
-    this.velocity = platform.velocity;
+  constructor(fighter: IScenarioPlatform, position: IPosition2D, heading: number) {
+    const platform = fighter.platform as IFighterPlatform;
+
+    if (!platform){
+      throw new Error(`Invalid fighter platform data for fighter ID: ${fighter.id}`);
+    }
+    this.id = fighter.id;
+    this.type = fighter.type;
+    this.velocity = fighter.velocity;
     this.position = position;
     this.heading = heading;
     this.rcs = platform.rcs;
@@ -71,6 +76,18 @@ export class Fighter {
     return velocityMs / 1000; // km/s
   }
 
+
+  getAzimuthToTarget(targetPos: IPosition2D): number {
+    const deltaX = targetPos.x - this.position.x;
+    const deltaY = targetPos.y - this.position.y;
+    const azimuthRad = Math.atan2(deltaY, deltaX);
+    let azimuthDeg = azimuthRad * (180 / Math.PI);
+    if (azimuthDeg < 0) {
+      azimuthDeg += 360;
+    }
+    return azimuthDeg;
+  }
+
   /**
    * Get RCS based on aspect angle from observer
    * 
@@ -98,7 +115,7 @@ export class Fighter {
   getAzimuthFromSAM(samPosition: IPosition2D): number {
     const dx = this.position.x - samPosition.x;
     const dy = this.position.y - samPosition.y;
-    return (Math.atan2(dy, dx) * 180) / Math.PI;
+    return (Math.atan2(dy, dx));
   }
 
   /**
@@ -118,8 +135,8 @@ export class Fighter {
     const dx = observerPos.x - fighterPos.x;
     const dy = observerPos.y - fighterPos.y;
 
-    // Angle to observer (in degrees)
-    const angleToObserver = (Math.atan2(dy, dx) * 180) / Math.PI;
+    // Angle to observer (in radians)
+    const angleToObserver = (Math.atan2(dy, dx));
 
     // Relative aspect (angle difference from heading)
     const relativeAspect = angleToObserver - fighterHeadingDeg;
