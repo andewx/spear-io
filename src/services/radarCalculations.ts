@@ -77,71 +77,66 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   };
 }
 
-
-// Given Radar's Nominal Range and Antenna Gain Determine Emitter Power and Form Correct IRadarSystem interface object
-export function createRadar(range: number, antenna_gain:  number): IRadarModel {
-  // Radar equation: R = [(P_t * G^2 * λ^2 * σ) / ((4π)^3 * P_min)]^(1/4)
-  // Solving for P_t (transmit power):
-  // P_t = R^4 * (4π)^3 * P_min / (G^2 * λ^2 * σ)
-  
-  // Assumptions:
-  // - Nominal RCS (σ) = 1 m²
-  // - Typical radar frequency = 10 GHz (X-band)
-  // - λ = c / f where c = 3×10^8 m/s
-  
-  const SPEED_OF_LIGHT = 3e8; // m/s
-  const FREQUENCY = 10e9; // 10 GHz (typical fighter radar)
-  const wavelength = SPEED_OF_LIGHT / FREQUENCY; // meters
-  const nominalRCS = 1.0; // m²
-  
-  // Convert range from km to meters
-  const rangeMeters = range * 1000;
-  
-  // Convert antenna gain from dB to linear
-  const antennaGainLinear = dbToLinear(antenna_gain);
-  
-  // Minimum detectable signal (P_min) - typically -100 to -110 dBm for radars
-  // Using -105 dBm as a reasonable middle ground
-  const P_min_dBm = -105;
-  const P_min_watts = Math.pow(10, (P_min_dBm - 30) / 10); // Convert dBm to watts
-  
-  // Calculate required transmit power using radar equation
-  // R^4 = (P_t * G^2 * λ^2 * σ) / ((4π)^3 * P_min)
-  const fourPiCubed = Math.pow(4 * Math.PI, 3);
-  const transmitPower = (Math.pow(rangeMeters, 4) * fourPiCubed * P_min_watts) / 
-                        (Math.pow(antennaGainLinear, 2) * Math.pow(wavelength, 2) * nominalRCS);
-  
-  // Normalize power to a 0-1 scale based on typical radar power ranges
-  // Typical fighter radars: 1-10 kW
-  // Typical ground radars: 10-100+ kW
-  const typicalMaxPower = 100000; // 100 kW
-  const normalizedPower = Math.min(transmitPower / typicalMaxPower, 1.0);
-  
-  // Noise floor as function of normalized power:  5-10 dB
-  // Higher power systems typically have higher noise floors
-  const noiseFloor = 5 + (normalizedPower * 5); // Maps 0-1 to 5-10 dB
-  
-  return {
-    nominalRange: range,
-    antennaGain: antenna_gain,
-    emitterPower: linearToDb(transmitPower / 1000), // Convert to dBkW for practical units
-    noiseFloor: noiseFloor,
-    frequency: FREQUENCY / 1e9, // Store in GHz
-    wavelength: wavelength
-  };
-}
-
 /**
- * Calculate adjusted detection range based on RCS
- * Uses radar range equation: R1/R2 = (RCS2/RCS1)^0.25
+ * Calculate minimum required SNR for fluctuating targets
+ * Supports Swerling Cases 0-4
  * 
- * @param nominalRange - Detection range for 1m² RCS target (km)
- * @param targetRCS - Target radar cross section (m²)
- * @returns Adjusted detection range (km)
+ * @param pd - Probability of detection (0-1)
+ * @param pfa - Probability of false alarm (0-1), typically 10^-6
+ * @param swerlingCase - Swerling model:  0 (non-fluctuating), 1, 2, 3, or 4
+ * @param nPulses - Number of integrated pulses (default 1)
+ * @returns Required SNR in dB
  */
-export function calculateDetectionRange(nominalRange: number, targetRCS: number): number {
-  const rcsRatio = targetRCS / 1.0; // Nominal is 1m²
-  return nominalRange * Math.pow(rcsRatio, 0.25);
+export function calculateMinSNRSwerling(
+  pd: number, 
+  pfa: number = 1e-6,
+  swerlingCase: 0 | 1 | 2 | 3 | 4 = 1,
+  nPulses:  number = 1
+): number {
+  // Base Albersheim's equation (for Swerling 1, single pulse)
+  const A = Math.log(0.62 / pfa);
+  const B = Math.log(pd / (1 - pd));
+  
+  let snr_linear = A + 0.12 * A * B + 1.7 * B;
+  
+  // Swerling case corrections
+  // These are approximate correction factors based on detection theory
+  switch (swerlingCase) {
+    case 0: // Non-fluctuating (coherent integration)
+      // Gain from coherent integration:  10*log10(n)
+      snr_linear -= 10 * Math.log10(nPulses);
+      break;
+      
+    case 1: // Slow fluctuation (scan-to-scan)
+      // No correction needed - Albersheim is based on this
+      break;
+      
+    case 2: // Fast fluctuation (pulse-to-pulse)
+      // Fast fluctuation with n-pulse integration
+      // Requires ~2-3 dB less SNR than Case 1 for same Pd
+      if (nPulses > 1) {
+        const integrationGain = 10 * Math.log10(nPulses) - 3; // Non-coherent loss
+        snr_linear -= integrationGain;
+      }
+      break;
+      
+    case 3: // Slow fluctuation (scan-to-scan) with better statistics
+      // Similar to Case 1 but ~1 dB better
+      snr_linear -= 1.0;
+      break;
+      
+    case 4: // Fast fluctuation with better statistics
+      // Similar to Case 2 but ~1-2 dB better
+      if (nPulses > 1) {
+        const integrationGain = 10 * Math. log10(nPulses) - 2.5;
+        snr_linear -= integrationGain;
+      } else {
+        snr_linear -= 1.5;
+      }
+      break;
+  }
+  
+  return snr_linear;
 }
 
 /**
