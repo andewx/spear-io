@@ -29,12 +29,12 @@ export interface ISAMSystem {
   antennaGain: number; // [antennaGain in system)
   frequency: number;
   wavelength: number;
-  noiseFloorDb: number; // [min Noise Floor DB 5-10dB]
-  probD: number; //Probability of detection desired - default 0.9, determines minSNR desired
-  minSNR: number; //Calculated fro probD. 
-  transmitKPower: number; //Transmit power in KW prior to antenna gain (Base power emitted)
-  beamWidthDeg: number; //Beam-width 3dB loss in degrees (Default 2.5 degree)
-  effectiveKPower: number: //Calculates effective power due to antennaGain
+  noiseFloor: number; // [min Noise Floor DB 5-10dB]
+  pd: number; //Probability of detection desired - default 0.9, determines minSNR desired
+  min_dbm: number; //min detectable signal -105dbm
+  min_watts: number; // min watts detectable
+  min_snr: number; //min snr detection from probability of detection
+  emitterPower: number; //Decibel kilowatts
  }
 
 // Fighter platform interface and model
