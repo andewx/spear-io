@@ -95,23 +95,20 @@ export class Radar {
   /**
    * Calculate received power at a given range using radar equation
    * P_r = (P_t * G^2 * λ^2 * σ) / ((4π)^3 * R^4)
-   * 
+   * @param dbPower - power input in db
    * @param range - Range to target (km)
    * @param rcs - Target radar cross section (m²)
    * @param pathAttenuationDb - Two-way path attenuation in dB (default 0)
    * @returns Received power in watts
    */
-  private calculateReceivedPower(wattsPower: number, range: number, rcs: number, pathAttenuationDb: number = 0): number {
+  private calculateReceivedPower(dbPower: number, range: number,frequency:number, pathAttenuationDb: number = 0): number {
     if (!this.radarModel) {
       throw new Error('Radar model required for power-based calculations');
     }
-
-    const rangeMeters = range; // * 1000; // Convert km to meters
-
-    // Scale watts power by range step,rcs wavelength etc
-    const attenuationLinear = dbToLinear(pathAttenuationDb);
-    const receivedPower = (wattsPower / (Math.pow(rangeMeters, 4)*attenuationLinear));
-    return receivedPower;
+    const fMhz = frequency * 1e-6;
+    const pathLossDb = 32.45 + 20*Math.log(range) + 20*Math.log(fMhz);
+    const newPowerDb = dbPower - pathLossDb - pathAttenuationDb;
+    return newPowerDb;
   }
 
   /**
@@ -236,22 +233,20 @@ export class Radar {
       const maxRangeKm = this.range * 1.5; // Sample beyond nominal for margin
       const rangeStepKm = kmPerPixel * 0.1; // Sample at fine intervals
       const NRay = Math.ceil(maxRangeKm / rangeStepKm);
+      const frequency = this.radarModel.frequency;
 
       //Scenario max precipitation rate
       const maxPrecipitationRate = scenario.environment.precipitation.maxRainRateCap || 35; // mm/hr
 
       // Total accumulated attenuation in dB (two-way path)
-      let totalAttenuationDb = 0;
-      let systemPowerWatts = this.radarModel ? dbToLinear(this.radarModel.emitterPower) * 1000 : 1000; // Convert kW to watts
-      systemPowerWatts = systemPowerWatts * dbToLinear(this.calculatePulseIntegrationGain(numPulses)) * Math.pow(dbToLinear(this.radarModel.antennaGain),2) * rcs * Math.pow(this.radarModel.wavelength,2) / Math.pow(4*Math.PI,3);
-      let stepAttenuationDb = 0;
-      
+      let sysPower = this.radarModel.emitterPower + Math.pow(this.radarModel.antennaGain,2) + linearToDb(rcs) + linearToDb(Math.pow(this.radarModel.wavelength,2)) + this.calculatePulseIntegrationGain(numPulses) // Convert kW to watts
       const azRad = this.degToRad(azimuth);
-      let lastDetectableRange = 0;
+      let lastDetectableRange = rangeStepKm;
 
       // Cast ray from radar position outward in azimuth direction
       // Calculate effective radar power at each step
       for (let iray = 0; iray < NRay; iray++) {
+        stepAttenuationDb = 0;
         const currentRangeKm = (iray + 1) * rangeStepKm;
         // Calculate world position along ray from radar position
         const offsetX = currentRangeKm * Math.cos(azRad);
@@ -273,8 +268,8 @@ export class Radar {
         // Calculate received power at this range with accumulated path attenuation
         if (this.radarModel) {
           // Power-based calculation: compute received power and check SNR
-          systemPowerWatts = this.calculateReceivedPower(systemPowerWatts,rangeStepKm, rcs, stepAttenuationDb);
-          const snr = this.calculateSNR(systemPowerWatts, numPulses);
+          sysPower = this.calculateReceivedPower(sysPower,rangeStepKm, frequency, stepAttenuationDb);
+          const snr = this.calculateSNR(sysPower, numPulses);
           
           // Check if SNR meets detection threshold
           if (snr >= this.radarModel.min_snr) {
