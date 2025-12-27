@@ -32,7 +32,7 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   // - λ = c / f where c = 3×10^8 m/s
   
   const SPEED_OF_LIGHT = 3e8; // m/s
-  const FREQUENCY = sys.frequency * 10e9;
+  const FREQUENCY = sys.frequency * 1e9;
   const wavelength = SPEED_OF_LIGHT / FREQUENCY; // meters
   const nominalRCS = 1.0; // m²
   
