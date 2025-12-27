@@ -3,7 +3,7 @@
  * Standard radar equation with RCS scaling and attenuation
  */
 
-import type { ISAMSystem, IFighterPlatform, IPosition2D } from '../types/index.js';
+import type { ISAMSystem, IFighterPlatform, IPosition2D, IRadarModel } from '../types/index.js';
 
 /**
  * Convert dB to linear power ratio
@@ -21,7 +21,7 @@ export function linearToDb(linear: number): number {
 
 
 // Given Radar's Nominal Range and Antenna Gain Determine Emitter Power and Form Correct IRadarSystem interface object
-export function createRadar(range: number, antenna_gain:number){
+export function createRadar(range: number, antenna_gain:number): IRadarModel{
 
 }
 /**
