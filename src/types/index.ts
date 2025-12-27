@@ -28,6 +28,8 @@ export interface ISAMSystem {
  export interface IRadarModel{
   nominalRange: number; // nominalRnage against 1.0m^2 target
   antennaGain: number; // [antennaGain in system)
+  frequency: number;
+  wavelength: number;
   noiseFloorDb: number; // [min Noise Floor DB 5-10dB]
   probD: number; //Probability of detection desired - default 0.9, determines minSNR desired
   minSNR: number; //Calculated fro probD. 
