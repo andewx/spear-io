@@ -62,6 +62,8 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   // Noise floor as function of normalized power:  5-10 dB
   // Higher power systems typically have higher noise floors
   const noiseFloor = 5 + (normalizedPower * 5); // Maps 0-1 to 5-10 dB
+
+  const min_snr = calculateMinSNRSwerling(0.9, 1e-6, 2, 1);
   
   return {
     nominalRange: range,
@@ -73,19 +75,18 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
     pd: 0.9,
     min_dbm: P_min_dBm,
     min_watts: P_min_watts,
-    min_snr: 10.5,
+    min_snr: min_snr,
   };
 }
 
 /**
  * Calculate minimum required SNR for fluctuating targets
- * Supports Swerling Cases 0-4
  * 
  * @param pd - Probability of detection (0-1)
  * @param pfa - Probability of false alarm (0-1), typically 10^-6
  * @param swerlingCase - Swerling model:  0 (non-fluctuating), 1, 2, 3, or 4
  * @param nPulses - Number of integrated pulses (default 1)
- * @returns Required SNR in dB
+ * @returns Required SNR in dB (per pulse)
  */
 export function calculateMinSNRSwerling(
   pd: number, 
@@ -93,52 +94,49 @@ export function calculateMinSNRSwerling(
   swerlingCase: 0 | 1 | 2 | 3 | 4 = 1,
   nPulses:  number = 1
 ): number {
-  // Base Albersheim's equation (for Swerling 1, single pulse)
+  // Base Albersheim's equation (single-pulse SNR requirement)
   const A = Math.log(0.62 / pfa);
   const B = Math.log(pd / (1 - pd));
   
-  let snr_linear = A + 0.12 * A * B + 1.7 * B;
+  let snr_dB = A + 0.12 * A * B + 1.7 * B;
   
-  // Swerling case corrections
-  // These are approximate correction factors based on detection theory
+  // For single pulse, all Swerling cases are equivalent
+  if (nPulses === 1) {
+    return snr_dB;
+  }
+  
+  // Multi-pulse integration gains
   switch (swerlingCase) {
-    case 0: // Non-fluctuating (coherent integration)
-      // Gain from coherent integration:  10*log10(n)
-      snr_linear -= 10 * Math.log10(nPulses);
+    case 0: // Non-fluctuating - coherent integration
+      // Full linear gain:  10*log10(n)
+      snr_dB -= 10 * Math.log10(nPulses);
       break;
       
     case 1: // Slow fluctuation (scan-to-scan)
-      // No correction needed - Albersheim is based on this
+      // Target constant within burst, minimal integration benefit
+      // Approximately sqrt(n) gain
+      snr_dB -= 10 * Math.log10(Math.pow(nPulses, 0.5));
       break;
       
     case 2: // Fast fluctuation (pulse-to-pulse)
-      // Fast fluctuation with n-pulse integration
-      // Requires ~2-3 dB less SNR than Case 1 for same Pd
-      if (nPulses > 1) {
-        const integrationGain = 10 * Math.log10(nPulses) - 3; // Non-coherent loss
-        snr_linear -= integrationGain;
-      }
+      // Non-coherent integration with post-detection combining
+      // Approximately n^0.7 gain for typical radars
+      snr_dB -= 10 * Math.log10(Math.pow(nPulses, 0.7));
       break;
       
-    case 3: // Slow fluctuation (scan-to-scan) with better statistics
-      // Similar to Case 1 but ~1 dB better
-      snr_linear -= 1.0;
+    case 3: // Slow fluctuation with better statistics
+      // Similar to Case 1 but slightly better diversity
+      snr_dB -= 10 * Math.log10(Math.pow(nPulses, 0.55));
       break;
       
     case 4: // Fast fluctuation with better statistics
-      // Similar to Case 2 but ~1-2 dB better
-      if (nPulses > 1) {
-        const integrationGain = 10 * Math. log10(nPulses) - 2.5;
-        snr_linear -= integrationGain;
-      } else {
-        snr_linear -= 1.5;
-      }
+      // Better than Case 2 due to more favorable statistics
+      snr_dB -= 10 * Math.log10(Math.pow(nPulses, 0.75));
       break;
   }
   
-  return snr_linear;
+  return snr_dB;
 }
-
 /**
  * Apply attenuation loss to detection range
  * Attenuation reduces received power, which affects range by R ∝ P^0.25
