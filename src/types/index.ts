@@ -20,10 +20,9 @@ export interface ISAMSystem {
   systemFrequency: number; // GHz
   missileTrackingFrequency: number; // GHz
   nominalRange: number;
-  radar: IRadarModel; //IRadar Mode
- 
-  
+  radar: IRadarModel; //IRadar Mode 
 }
+
 
  export interface IRadarModel{
   nominalRange: number; // nominalRnage against 1.0m^2 target
