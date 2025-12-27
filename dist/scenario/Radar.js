@@ -77,11 +77,9 @@ export class Radar {
             throw new Error('Radar model required for power-based calculations');
         }
         const rangeMeters = range * 1000; // Convert km to meters
-        const wavelength = this.radarModel.wavelength;
-        const fourPiCubed = Math.pow(4 * Math.PI, 3);
         // Scale watts power by range step,rcs wavelength etc
         const attenuationLinear = dbToLinear(pathAttenuationDb);
-        const receivedPower = (wattsPower * Math.pow(this.radarModel.antennaGain, 2) * Math.pow(wavelength, 2) * rcs) / (fourPiCubed * Math.pow(rangeMeters, 4) * attenuationLinear);
+        const receivedPower = (wattsPower / Math.pow(rangeMeters, 4) * attenuationLinear);
         return receivedPower;
     }
     /**
@@ -97,13 +95,11 @@ export class Radar {
         if (!this.radarModel) {
             throw new Error('Radar model required for SNR calculations');
         }
-        const dbPower = linearToDb(receivedPower);
+        const dbPower = receivedPower;
         // Noise power from minimum detectable signal
         const noisePower = dbToLinear(this.radarModel.noiseFloor);
-        // Pulse integration gain for Swerling 2 (non-coherent)
-        const integrationGain = 10 * Math.log10(Math.pow(numPulses, 0.7));
         // SNR = (P_r * integration_gain) / P_noise in dB
-        const snr = (dbPower + integrationGain) - noisePower;
+        const snr = linearToDb(receivedPower / noisePower);
         return snr;
     }
     /**
@@ -190,6 +186,7 @@ export class Radar {
             // Total accumulated attenuation in dB (two-way path)
             let totalAttenuationDb = 0;
             let systemPowerWatts = this.radarModel ? dbToLinear(this.radarModel.emitterPower) * 1000 : 1000; // Convert kW to watts
+            systemPowerWatts = systemPowerWatts * dbToLinear(this.calculatePulseIntegrationGain(numPulses)) * Math.pow(dbToLinear(this.radarModel.antennaGain), 2) * rcs * Math.pow(this.radarModel.wavelength, 2) / Math.pow(4 * Math.PI, 3);
             let stepAttenuationDb = 0;
             const azRad = this.degToRad(azimuth);
             let lastDetectableRange = 0;
@@ -210,12 +207,11 @@ export class Radar {
                     const specificAttenuation = this.getSpecificAttenuation(rainRate); // dB/km one-way
                     // Two-way path: signal travels to target and back
                     const stepAttenuationDb = 2.0 * specificAttenuation * rangeStepKm;
-                    totalAttenuationDb += stepAttenuationDb;
                 }
                 // Calculate received power at this range with accumulated path attenuation
                 if (this.radarModel) {
                     // Power-based calculation: compute received power and check SNR
-                    systemPowerWatts = this.calculateReceivedPower(systemPowerWatts, rangeStepKm, rcs, totalAttenuationDb);
+                    systemPowerWatts = this.calculateReceivedPower(systemPowerWatts, rangeStepKm, rcs, stepAttenuationDb);
                     const snr = this.calculateSNR(systemPowerWatts, numPulses);
                     // Check if SNR meets detection threshold
                     if (snr >= this.radarModel.min_snr) {
