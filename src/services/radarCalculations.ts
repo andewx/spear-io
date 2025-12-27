@@ -19,6 +19,11 @@ export function linearToDb(linear: number): number {
   return 10 * Math.log10(linear);
 }
 
+
+// Given Radar's Nominal Range and Antenna Gain Determine Emitter Power and Form Correct IRadarSystem interface object
+export function createRadar(range: number, antenna_gain:number){
+
+}
 /**
  * Calculate adjusted detection range based on RCS
  * Uses radar range equation: R1/R2 = (RCS2/RCS1)^0.25
