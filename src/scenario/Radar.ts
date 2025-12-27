@@ -106,11 +106,11 @@ export class Radar {
       throw new Error('Radar model required for power-based calculations');
     }
 
-    const rangeMeters = range * 1000; // Convert km to meters
+    const rangeMeters = range; // * 1000; // Convert km to meters
 
     // Scale watts power by range step,rcs wavelength etc
     const attenuationLinear = dbToLinear(pathAttenuationDb);
-    const receivedPower = (wattsPower / Math.pow(rangeMeters, 4)*attenuationLinear);
+    const receivedPower = (wattsPower / (Math.pow(rangeMeters, 4)*attenuationLinear));
     return receivedPower;
   }
 
