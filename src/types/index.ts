@@ -12,7 +12,6 @@ export type TPulseModel = 'short' | 'medium' | 'long';
 export interface ISAMSystem {
   id: string;
   name: string;
-  nominalRange: number; // km, for 1m² RCS target
   pulseModel: TPulseModel;
   manualAcquisitionTime: number; // seconds
   autoAcquisitionTime: number; // seconds
@@ -20,7 +19,22 @@ export interface ISAMSystem {
   missileVelocity: number; // Mach number
   systemFrequency: number; // GHz
   missileTrackingFrequency: number; // GHz
+  nominalRange: number;
+  radar: IRadarModel; //IRadar Mode
+ 
+  
 }
+
+ export interface IRadarModel{
+  nominalRange: number; // nominalRnage against 1.0m^2 target
+  antennaGain: number; // [antennaGain in system)
+  noiseFloorDb: number; // [min Noise Floor DB 5-10dB]
+  probD: number; //Probability of detection desired - default 0.9, determines minSNR desired
+  minSNR: number; //Calculated fro probD. 
+  transmitKPower: number; //Transmit power in KW prior to antenna gain (Base power emitted)
+  beamWidthDeg: number; //Beam-width 3dB loss in degrees (Default 2.5 degree)
+  effectiveKPower: number: //Calculates effective power due to antennaGain
+ }
 
 // Fighter platform interface and model
 export interface IFighterPlatform {
