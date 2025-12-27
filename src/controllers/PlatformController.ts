@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import * as storage from '../services/fileStorage.js';
 import { sendView, sendViewOrJSON } from '../services/templateRenderer.js';
 import type { ISAMSystem, IFighterPlatform, TAPIResponse } from '../types/index.js';
+import { createRadar } from '../services/radarCalculations.js';
 
 export class PlatformController {
   /**
@@ -106,19 +107,26 @@ export class PlatformController {
 
       // Map incoming fields from collated platform form element
       if (type === 'sam'){
+        let newSam = {
+          id: '',
+          name: '',
+          range: 0,
+          frequency: 0,
+          radar: {} as any,
+          memr: 0,
+          vel: 0
+        };
+
         const samData = data as any;
         // Map form field names to interface field names
-        samData.id = samData.sam_id || randomUUID();
-        samData.position = samData.position || { x: 0, y: 0 };
-        samData.name = samData.sam_name;
-        samData.nominalRange = samData.radar?.nominalRange;
-        samData.pulseModel = samData.radar?.pulseModel || 'medium';
-        samData.systemFrequency = samData.radar?.frequency;
-        samData.manualAcquisitionTime = samData.acquisition?.manualTime;
-        samData.autoAcquisitionTime = samData.acquisition?.autoTime;
-        samData.memr = samData.missile?.memr;
-        samData.missileVelocity = samData.missile?.velocity;
-        samData.missileTrackingFrequency = samData.missile?.trackingRadarFrequency;
+        newSam.id = samData.sam_id || randomUUID();
+        newSam.name = samData.sam_name;
+        newSam.range = samData.radar?.range;
+        newSam.frequency = samData.radar?.frequency;
+        newSam.memr = samData.missile?.memr;
+        newSam.vel = samData.missile?.vel;
+
+        newSam.radar = createRadar(newSam, samData.radar.antennaGain);
         
         // Clean up form-specific fields
         delete samData.sam_id;
@@ -127,7 +135,7 @@ export class PlatformController {
         delete samData.acquisition;
         delete samData.missile;
         
-        data = samData as ISAMSystem;
+        data = newSam as ISAMSystem;
       }else if (type === 'fighter'){
         const fighterData = data as any;
         // Map form field names to interface field names
@@ -191,27 +199,29 @@ export class PlatformController {
 
       // Map incoming fields from form element (same as create)
       if (type === 'sam'){
+        let newSam = {
+          id: '',
+          name: '',
+          range: 0,
+          frequency: 0,
+          radar: {} as any,
+          memr: 0,
+          vel: 0
+        };
+
+
         const samData = data as any;
         // Map form field names to interface field names
-        samData.id = id; // Use ID from URL
-        samData.name = samData.sam_name;
-        samData.nominalRange = samData.radar?.nominalRange;
-        samData.pulseModel = samData.radar?.pulseModel || 'medium';
-        samData.systemFrequency = samData.radar?.frequency;
-        samData.manualAcquisitionTime = samData.acquisition?.manualTime;
-        samData.autoAcquisitionTime = samData.acquisition?.autoTime;
-        samData.memr = samData.missile?.memr;
-        samData.missileVelocity = samData.missile?.velocity;
-        samData.missileTrackingFrequency = samData.missile?.trackingRadarFrequency;
+        newSam.id = id; // Use ID from URL
+        newSam.name = samData.sam_name;
+        newSam.range = samData.radar?.range;
+        newSam.frequency = samData.radar?.frequency;
+        newSam.memr = samData.missile?.memr;
+        newSam.vel = samData.missile?.vel;
+
+        newSam.radar = createRadar(newSam, samData.radar.antennaGain);
         
-        // Clean up form-specific fields
-        delete samData.sam_id;
-        delete samData.sam_name;
-        delete samData.radar;
-        delete samData.acquisition;
-        delete samData.missile;
-        
-        data = samData as ISAMSystem;
+        data = newSam as ISAMSystem;
       }else if (type === 'fighter'){
         const fighterData = data as any;
         // Map form field names to interface field names

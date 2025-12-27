@@ -7,20 +7,30 @@
 // Platform Types
 // ============================================================================
 
-export type TPulseModel = 'short' | 'medium' | 'long';
 
 export interface ISAMSystem {
   id: string;
   name: string;
-  nominalRange: number; // km, for 1m² RCS target
-  pulseModel: TPulseModel;
-  manualAcquisitionTime: number; // seconds
-  autoAcquisitionTime: number; // seconds
   memr: number; // Maximum Effective Missile Range )
-  missileVelocity: number; // Mach number
-  systemFrequency: number; // GHz
-  missileTrackingFrequency: number; // GHz
+  vel: number; // Mach number
+  frequency: number; // GHz
+  range: number;
+  radar: IRadarModel; //IRadar Mode 
 }
+
+
+ export interface IRadarModel{
+  range: number; // nominalRnage against 1.0m^2 target
+  antennaGain: number; // [antennaGain in system)
+  frequency: number;
+  wavelength: number;
+  noiseFloor: number; // [min Noise Floor DB 5-10dB]
+  pd: number; //Probability of detection desired - default 0.9, determines minSNR desired
+  min_dbm: number; //min detectable signal -105dbm
+  min_watts: number; // min watts detectable
+  min_snr: number; //min snr detection from probability of detection
+  emitterPower: number; //Decibel kilowatts
+ }
 
 // Fighter platform interface and model
 export interface IFighterPlatform {

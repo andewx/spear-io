@@ -2,18 +2,26 @@
  * Core type definitions for SPEAR application
  * Naming convention: Interfaces use I prefix, type aliases use T prefix
  */
-export type TPulseModel = 'short' | 'medium' | 'long';
 export interface ISAMSystem {
     id: string;
     name: string;
-    nominalRange: number;
-    pulseModel: TPulseModel;
-    manualAcquisitionTime: number;
-    autoAcquisitionTime: number;
     memr: number;
-    missileVelocity: number;
-    systemFrequency: number;
-    missileTrackingFrequency: number;
+    vel: number;
+    frequency: number;
+    range: number;
+    radar: IRadarModel;
+}
+export interface IRadarModel {
+    range: number;
+    antennaGain: number;
+    frequency: number;
+    wavelength: number;
+    noiseFloor: number;
+    pd: number;
+    min_dbm: number;
+    min_watts: number;
+    min_snr: number;
+    emitterPower: number;
 }
 export interface IFighterPlatform {
     id: string;

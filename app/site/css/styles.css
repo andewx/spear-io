@@ -21,23 +21,23 @@
 
 @font-face{
   font-family: 'melody';
-  src: url('../fonts/Melody-Regular.woff2') format('woff2'),
-       url('../fonts/Melody-Regular.woff') format('woff');
+  src: url('../fonts/Melody/Melody-Regular.woff2') format('woff2'),
+       url('../fonts/Melody/Melody-Regular.woff') format('woff');
   font-weight: normal;
   font-style: normal;
 }
 
 @font-face{
   font-family: 'latenight';
-  src: url('../fonts/LateNight-Regular.woff2') format('woff2'),
-       url('../fonts/LateNight-Regular.woff') format('woff');
+  src: url('../fonts/latenight/LateNight-Regular.woff2') format('woff2'),
+       url('../fonts/latenight/LateNight-Regular.woff') format('woff');
   font-weight: normal;
 }
 
 @font-face{
   font-family: 'sofia';
-  src: url('../fonts/Sofia-Regular.woff2') format('woff2'),
-       url('../fonts/Sofia-Regular.woff') format('woff');
+  src: url('../fonts/sofia/Sofia-Regular.woff2') format('woff2'),
+       url('../fonts/sofia/Sofia-Regular.woff') format('woff');
   font-weight: normal;
 }
 

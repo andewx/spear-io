@@ -8,7 +8,7 @@ import * as storage from '../services/fileStorage.js';
 import { Radar } from '../scenario/Radar.js';
 import { SAMSystem } from '../scenario/SAMSystem.js';
 import { Fighter } from '../scenario/Fighter.js';
-import { getAspectRCS, calculateEngagement } from '../services/radarCalculations.js';
+import { getAspectRCS } from '../services/radarCalculations.js';
 import { calculatePathAttenuation } from '../scenario/PathAttenuation.js';
 import * as itu from '../services/ituData.js';
 import type { TAPIResponse, IEngagementResult, IScenario, IPosition2D } from '../types/index.js';
@@ -214,11 +214,14 @@ export class SimulationController {
     const azimuth = this.calculateAzimuth(samPos, fighterPos);
     const fighterRCS = firstFighter.getRCSFromPosition(fighterPos, samPos, azimuth);
     
+    // Use typical burst size for pulse integration (10 pulses)
+    const numPulses = 10;
+    
     // TODO: Implement getRangeAtAzimuth for multi-platform scenarios
     const detectionRange = firstSAM.calculateDetectionRange(
       fighterRCS,
-      firstSAM.pulseMode.numPulses,
-      firstSAM.nominalRange
+      numPulses,
+      firstSAM.range
     );
 
     // Get missile states - create copies of all position objects
@@ -298,40 +301,8 @@ export class SimulationController {
     }
   }
 
-  /**
-   * GET /api/simulation/sam/nominal-ranges
-   * Get SAM system nominal ranges profile
-   */
+
   async getRangesProfile(req: Request, res: Response): Promise<void> {
-    try {
-      // TODO: Implement getRanges logic for multi-platform scenarios
-      // For now, return first SAM's ranges
-      const firstSAM = this.scenario.scenarioSams[0];
-      if (!firstSAM) {
-        throw new Error('No SAM system found in scenario');
-      }
-
-      const ranges = firstSAM.getRangesAzimuth();
-
-      console.log(`SAM Ranges Profile Request Received${ranges}\n`);
-
-      const response: TAPIResponse<Array<number>> = {
-        success: true,
-        data: ranges,
-      };
-      res.json(response);
-    } catch (error) {
-      this.handleError(res, error);
-      console.error('Error getting SAM nominal ranges profile:', error);
-      const response: TAPIResponse<never> = {
-        success: false,
-        error: 'Error retrieving SAM nominal ranges profile',
-      };
-      res.status(500).json(response);
-    }
-  }
-
-  async getPrecipRangesProfile(req: Request, res: Response): Promise<void> {
     try {
       // TODO: Implement getPrecipitationRanges logic for multi-platform scenarios
       // For now, return first SAM's precipitation ranges
@@ -340,7 +311,10 @@ export class SimulationController {
         throw new Error('No SAM system found in scenario');
       }
 
-      const ranges = firstSAM.precipRangesAzimuth;
+      const numPulses = 10; // Typical burst size for pulse integration
+
+      await firstSAM.getPrecipitationRanges(numPulses);
+      const ranges = firstSAM.ranges;
       const response: TAPIResponse<{ranges:Array<number>}> = {
         success: true,
         data: {ranges: ranges},

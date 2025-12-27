@@ -42,12 +42,7 @@ export declare class SimulationController {
      */
     private calculateAzimuth;
     reset(req: Request, res: Response): Promise<void>;
-    /**
-     * GET /api/simulation/sam/nominal-ranges
-     * Get SAM system nominal ranges profile
-     */
     getRangesProfile(req: Request, res: Response): Promise<void>;
-    getPrecipRangesProfile(req: Request, res: Response): Promise<void>;
     /**
      * Error handler
      */

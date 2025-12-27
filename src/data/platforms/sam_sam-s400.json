@@ -1,12 +1,20 @@
 {
   "id": "sam-s400",
-  "name": "S-400 Triumf",
-  "nominalRange": "250",
-  "pulseModel": "medium",
-  "systemFrequency": "6",
-  "manualAcquisitionTime": "20",
-  "autoAcquisitionTime": "5",
+  "name": "S-400 (RU)",
+  "range": "250",
+  "frequency": "6",
+  "radar": {
+    "range": 250,
+    "antennaGain": "34",
+    "emitterPower": 41.91449618082402,
+    "noiseFloor": 10,
+    "frequency": 6,
+    "wavelength": 0.05,
+    "pd": 0.9,
+    "min_dbm": -105,
+    "min_watts": 3.1622776601683796e-14,
+    "min_snr": 20.589407818780277
+  },
   "memr": "250",
-  "missileVelocity": "12",
-  "missileTrackingFrequency": "10"
+  "vel": "12"
 }

@@ -2,7 +2,7 @@
  * Radar calculation utilities
  * Standard radar equation with RCS scaling and attenuation
  */
-import type { ISAMSystem, IFighterPlatform, IPosition2D } from '../types/index.js';
+import type { ISAMSystem, IFighterPlatform, IPosition2D, IRadarModel } from '../types/index.js';
 /**
  * Convert dB to linear power ratio
  */
@@ -11,15 +11,17 @@ export declare function dbToLinear(db: number): number;
  * Convert linear power ratio to dB
  */
 export declare function linearToDb(linear: number): number;
+export declare function createRadar(sys: ISAMSystem, antenna_gain: number): IRadarModel;
 /**
- * Calculate adjusted detection range based on RCS
- * Uses radar range equation: R1/R2 = (RCS2/RCS1)^0.25
+ * Calculate minimum required SNR for fluctuating targets
  *
- * @param nominalRange - Detection range for 1m² RCS target (km)
- * @param targetRCS - Target radar cross section (m²)
- * @returns Adjusted detection range (km)
+ * @param pd - Probability of detection (0-1)
+ * @param pfa - Probability of false alarm (0-1), typically 10^-6
+ * @param swerlingCase - Swerling model:  0 (non-fluctuating), 1, 2, 3, or 4
+ * @param nPulses - Number of integrated pulses (default 1)
+ * @returns Required SNR in dB (per pulse)
  */
-export declare function calculateDetectionRange(nominalRange: number, targetRCS: number): number;
+export declare function calculateMinSNRSwerling(pd: number, pfa?: number, swerlingCase?: 0 | 1 | 2 | 3 | 4, nPulses?: number): number;
 /**
  * Apply attenuation loss to detection range
  * Attenuation reduces received power, which affects range by R ∝ P^0.25
@@ -51,24 +53,6 @@ export declare function calculateMissileFlightTime(distance: number, velocityMac
  * @returns True if within vulnerability window
  */
 export declare function isInVulnerabilityWindow(samToFighterDistance: number, memr: number, memrRatio?: number): boolean;
-/**
- * Calculate engagement result for SAM vs Fighter scenario
- *
- * @param sam - SAM system configuration
- * @param fighter - Fighter platform configuration
- * @param samPosition - SAM position
- * @param fighterPosition - Fighter position
- * @param pathAttenuationDb - Attenuation along radar path (dB)
- * @returns Object with kill times and success flag
- */
-export declare function calculateEngagement(sam: ISAMSystem, fighter: IFighterPlatform, samPosition: IPosition2D, fighterPosition: IPosition2D, pathAttenuationDb: number, fighterRCS: number): {
-    detectionRange: number;
-    currentDistance: number;
-    samKillTime: number;
-    harmKillTime: number;
-    success: boolean;
-    detected: boolean;
-};
 /**
  * Get aspect-dependent RCS from fighter platform
  * Simplified aspect calculation based on position vector

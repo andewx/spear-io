@@ -32,10 +32,10 @@
                 <div class="d-flex w-100 justify-content-between align-items-start">
                   <div>
                     <h6 class="mb-1"><%= sam.name %></h6>
-                    <small class="text-muted">MEMR: <%= sam.memr %> km | <%= sam.systemFrequency %> GHz</small>
+                    <small class="text-muted">MEMR: <%= sam.memr %> km | <%= sam.frequency %> GHz</small>
                   </div>
                   <div class="d-flex gap-2">
-                    <small class="text-primary me-2"><%= sam.nominalRange %> km</small>
+                    <small class="text-primary me-2"><%= sam.range %> km</small>
                     <button class="btn btn-sm btn-outline-secondary py-0" bluejs="btn-edit-sam-<%= sam.id %>" bluejs-trigger="click" bluejs-binding="editPlatform" data-type="sam" data-id="<%= sam.id %>">Edit</button>
                     <button class="btn btn-sm btn-outline-danger py-0" bluejs="btn-delete-sam-<%= sam.id %>" bluejs-trigger="click" bluejs-binding="deletePlatform" data-type="sam" data-id="<%= sam.id %>">Del</button>
                   </div>
