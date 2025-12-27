@@ -32,7 +32,7 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   // - λ = c / f where c = 3×10^8 m/s
   
   const SPEED_OF_LIGHT = 3e8; // m/s
-  const FREQUENCY = 10e9; // 10 GHz (typical fighter radar)
+  const FREQUENCY = sys.frequency * 10e9;
   const wavelength = SPEED_OF_LIGHT / FREQUENCY; // meters
   const nominalRCS = 1.0; // m²
   
@@ -66,10 +66,14 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   return {
     nominalRange: range,
     antennaGain: antenna_gain,
-    emitterPower: linearToDb(transmitPower / 1000), // Convert to dBkW for practical units
+    emitterPower: linearToDb(transmitPower / 1000),
     noiseFloor: noiseFloor,
     frequency: FREQUENCY / 1e9, // Store in GHz
-    wavelength: wavelength
+    wavelength: wavelength,
+    pd: 0.9,
+    min_dbm: P_min_dBm,
+    min_watts: P_min_watts,
+    min_snr: 10.5,
   };
 }
 
