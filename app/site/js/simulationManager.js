@@ -38,7 +38,7 @@ class SimulationManager {
       // Update visualization
       if (this.visualization) {
         await this.visualization.setScenario(this.scenario)
-        await this.visualization.updateRangeProfile(await simulationAPI.getPrecipRanges());
+        await this.visualization.updateRangeProfile(await simulationAPI.getRanges());
         this.visualization.render();
       }
 

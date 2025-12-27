@@ -74,20 +74,41 @@ export async function loadSAMPlatform(id: string): Promise<ISAMSystem | null> {
   const filePath = path.join(PLATFORMS_DIR, `sam_${id}.json`);
   try {
     const data = await readJSON<any>(filePath);
-    // Coerce string numbers to actual numbers
+    
+    // Handle legacy format (pre-refactor) - check if it has the old structure
+    const isLegacyFormat = data.radar && data.radar.nominalRange !== undefined && !data.radar.range;
+    
+    if (isLegacyFormat) {
+      // Legacy format - migrate to new structure
+      // Create radar model from legacy data using createRadar if available
+      // For now, return null to force re-creation or manual migration
+      console.warn(`Platform ${id} uses legacy format and needs migration`);
+      return null;
+    }
+    
+    // Coerce string numbers to actual numbers for new format
     return {
       id: data.id,
       name: data.name,
-      nominalRange: Number(data.nominalRange),
-      pulseModel: data.pulseModel,
-      manualAcquisitionTime: Number(data.manualAcquisitionTime),
-      autoAcquisitionTime: Number(data.autoAcquisitionTime),
+      range: Number(data.range),
+      frequency: Number(data.frequency),
+      radar: {
+        range: Number(data.radar.range),
+        antennaGain: Number(data.radar.antennaGain),
+        frequency: Number(data.radar.frequency),
+        wavelength: Number(data.radar.wavelength),
+        noiseFloor: Number(data.radar.noiseFloor),
+        pd: Number(data.radar.pd),
+        min_dbm: Number(data.radar.min_dbm),
+        min_watts: Number(data.radar.min_watts),
+        min_snr: Number(data.radar.min_snr),
+        emitterPower: Number(data.radar.emitterPower),
+      },
       memr: Number(data.memr),
-      missileVelocity: Number(data.missileVelocity),
-      systemFrequency: Number(data.systemFrequency),
-      missileTrackingFrequency: Number(data.missileTrackingFrequency),
+      vel: Number(data.vel),
     } as ISAMSystem;
-  } catch {
+  } catch (error) {
+    console.error(`Error loading SAM platform ${id}:`, error);
     return null;
   }
 }

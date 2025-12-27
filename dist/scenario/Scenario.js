@@ -69,9 +69,10 @@ export class Scenario {
                 throw new Error(`SAM platform not found: ${samPlatformData.id}`);
             }
             // create SAMSystem instance
+            const numPulses = 10; // Typical burst size for pulse integration
             const samSystem = new SAMSystem(samPlatform, scenario);
             await samSystem.radar.loadITUData();
-            await samSystem.initPrecipitationField(scenario);
+            await samSystem.getPrecipitationRanges(numPulses);
             samSystem.position = samPlatformData.position;
             samPlatforms.push(samSystem);
         }
@@ -149,11 +150,11 @@ export class Scenario {
                     if (distance <= samSystem.properties.memr) {
                         // Target within MEMR
                         const timeSinceLastLaunch = this.timeElapsed - samSystem.status.lastLaunchTime;
-                        if (track.timeElapsedTracking >= samSystem.properties.autoAcquisitionTime && (timeSinceLastLaunch >= samSystem.launchIntervalSec)) {
+                        if ((timeSinceLastLaunch >= samSystem.launchIntervalSec)) {
                             //Launch missile if not already launched
                             if (samSystem.status.missilesRemaining > 0) {
                                 const speedOfSound = 343; // m/s
-                                const missileVelocityKmS = (samSystem.missileVelocity * speedOfSound) / 1000;
+                                const missileVelocityKmS = (samSystem.properties.vel * speedOfSound) / 1000;
                                 const azimuth = samSystem.getAzimuthToTarget(targetFighter.position);
                                 const missilePosition = { x: samSystem.position.x, y: samSystem.position.y };
                                 this.missiles.push(createMissile(missilePosition, missileVelocityKmS, azimuth, 'sam', this.timeElapsed, targetFighter, samSystem.properties.memr));

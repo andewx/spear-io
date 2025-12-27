@@ -6,26 +6,30 @@ import * as itu from '../services/ituData.js';
 import { createCanvas, loadImage } from 'canvas';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dbToLinear, linearToDb } from '../services/radarCalculations.js';
 /**
  * Radar system for detection range calculations
  * Operates using relative range scaling from nominal 1m² RCS baseline
+ * Now supports power-based detection with pulse integration
  */
 export class Radar {
-    nominalRange;
+    range;
     frequency;
     pulseIntegrationGain;
     radarConfig;
     ituData;
+    radarModel = null;
     //Canvas objects for precipitation image processing
     ctx = null;
     imageData = null;
     constructor(config) {
-        this.nominalRange = config.nominalRange;
+        this.range = config.range;
         this.frequency = config.frequency;
         this.radarConfig = config;
-        this.pulseIntegrationGain = this.calculatePulseIntegrationGain(this.radarConfig.pulseIntegration.numPulses);
+        this.radarModel = config.radarModel || null;
+        this.pulseIntegrationGain = this.calculatePulseIntegrationGain(1);
         //Ensure numeric properties are numbers
-        this.nominalRange = Number(this.nominalRange);
+        this.range = Number(this.range);
         this.frequency = Number(this.frequency);
     }
     /** Canvas context and image data for precipitation image processing */
@@ -57,13 +61,69 @@ export class Radar {
      * Non-coherent: N^0.7
      */
     calculatePulseIntegrationGain(pulses) {
-        const N = pulses;
-        if (this.radarConfig.pulseIntegration.mode === 'coherent') {
-            return this.wattsToDecibels(Math.sqrt(pulses));
+        return this.wattsToDecibels(Math.pow(pulses, 0.7));
+    }
+    /**
+     * Calculate received power at a given range using radar equation
+     * P_r = (P_t * G^2 * λ^2 * σ) / ((4π)^3 * R^4)
+     *
+     * @param range - Range to target (km)
+     * @param rcs - Target radar cross section (m²)
+     * @param pathAttenuationDb - Two-way path attenuation in dB (default 0)
+     * @returns Received power in watts
+     */
+    calculateReceivedPower(wattsPower, range, rcs, pathAttenuationDb = 0) {
+        if (!this.radarModel) {
+            throw new Error('Radar model required for power-based calculations');
         }
-        else {
-            return this.wattsToDecibels(Math.pow(pulses, 0.7));
+        const rangeMeters = range * 1000; // Convert km to meters
+        const wavelength = this.radarModel.wavelength;
+        const fourPiCubed = Math.pow(4 * Math.PI, 3);
+        // Scale watts power by range step,rcs wavelength etc
+        const attenuationLinear = dbToLinear(pathAttenuationDb);
+        const receivedPower = (wattsPower * Math.pow(this.radarModel.antennaGain, 2) * Math.pow(wavelength, 2) * rcs) / (fourPiCubed * Math.pow(rangeMeters, 4) * attenuationLinear);
+        return receivedPower;
+    }
+    /**
+     * Calculate SNR for received power with pulse integration
+     * SNR = (P_r * N^α) / P_noise
+     * where α = 0.7 for non-coherent integration (Swerling 2)
+     *
+     * @param receivedPower - Received power per pulse (watts)
+     * @param numPulses - Number of integrated pulses
+     * @returns SNR in dB
+     */
+    calculateSNR(receivedPower, numPulses = 1) {
+        if (!this.radarModel) {
+            throw new Error('Radar model required for SNR calculations');
         }
+        const dbPower = linearToDb(receivedPower);
+        // Noise power from minimum detectable signal
+        const noisePower = dbToLinear(this.radarModel.noiseFloor);
+        // Pulse integration gain for Swerling 2 (non-coherent)
+        const integrationGain = 10 * Math.log10(Math.pow(numPulses, 0.7));
+        // SNR = (P_r * integration_gain) / P_noise in dB
+        const snr = (dbPower + integrationGain) - noisePower;
+        return snr;
+    }
+    /**
+     * Determine if target is detectable at given range with current parameters
+     * Detection occurs when SNR >= min_snr (from probability of detection requirements)
+     *
+     * @param range - Range to target (km)
+     * @param rcs - Target RCS (m²)
+     * @param pathAttenuationDb - Two-way path attenuation (dB)
+     * @param numPulses - Number of integrated pulses
+     * @returns True if target is detectable
+     */
+    isDetectable(range, rcs, pathAttenuationDb, numPulses) {
+        if (!this.radarModel) {
+            // Fall back to legacy range-based calculation
+            return true;
+        }
+        const receivedPower = this.calculateReceivedPower(range, rcs, pathAttenuationDb);
+        const snr = this.calculateSNR(receivedPower, numPulses);
+        return snr >= this.radarModel.min_snr;
     }
     /**
      * Load the ITU data for path attenuation calculations
@@ -103,42 +163,40 @@ export class Radar {
     }
     /**
      * Calculate detection range with precipitation field attenuation sampling
+     * Calculates effective radar power at each step along the beam path and returns
+     * the range where received power drops below the minimum SNR threshold
+     *
      * @param rcs fighter RCS (m²)
-     * @param azimuth
-     * @returns
+     * @param position radar position
+     * @param azimuth beam azimuth (degrees)
+     * @param scenario scenario with precipitation field
+     * @param numPulses number of pulses to integrate (default 1)
+     * @returns detection range (km) where SNR falls below detection threshold
      */
-    calculateDetectionRangeWithPrecipitationFieldSampling(rcs, position, azimuth, scenario) {
+    calculateDetectionRangeWithPrecipitationFieldSampling(rcs, position, azimuth, scenario, numPulses = 1) {
         // If no precipitation field image, return unattenuated range
         if (!scenario.precipitationFieldImage) {
             console.log("No precipitation field image defined, returning unattenuated range.");
-            return this.calculateDetectionRange(rcs, 1.0, this.nominalRange);
+            return this.calculateDetectionRange(rcs, numPulses, this.range);
         }
         try {
             const pixelsPerKm = scenario.grid.resolution; // pixels per km
             const kmPerPixel = 1 / pixelsPerKm;
-            const maxRangeKm = this.nominalRange; // Sample out to nominal range
-            const rangeStepKm = kmPerPixel * 0.1; // Sample at approx 1.5 pixel intervals
+            const maxRangeKm = this.range * 1.5; // Sample beyond nominal for margin
+            const rangeStepKm = kmPerPixel * 0.1; // Sample at fine intervals
             const NRay = Math.ceil(maxRangeKm / rangeStepKm);
             //Scenario max precipitation rate
             const maxPrecipitationRate = scenario.environment.precipitation.maxRainRateCap || 35; // mm/hr
             // Total accumulated attenuation in dB (two-way path)
             let totalAttenuationDb = 0;
-            // Calculate base detection range for this RCS (without attenuation)
-            const baseDetectionRange = this.nominalRange;
+            let systemPowerWatts = this.radarModel ? dbToLinear(this.radarModel.emitterPower) * 1000 : 1000; // Convert kW to watts
+            let stepAttenuationDb = 0;
             const azRad = this.degToRad(azimuth);
-            let detectionRange = baseDetectionRange;
+            let lastDetectableRange = 0;
             // Cast ray from radar position outward in azimuth direction
+            // Calculate effective radar power at each step
             for (let iray = 0; iray < NRay; iray++) {
                 const currentRangeKm = (iray + 1) * rangeStepKm;
-                // Calculate what the adjusted detection range is with attenuation accumulated so far
-                // Range reduction: R_attenuated = R_base * 10^(-attenuation_dB / 40)
-                // totalAttenuationDb is POSITIVE, so we need the negative sign in the exponent
-                const adjustedDetectionRange = baseDetectionRange * Math.pow(10, -totalAttenuationDb / 40);
-                // If we've propagated beyond where we can detect, stop here
-                if (currentRangeKm > adjustedDetectionRange) {
-                    detectionRange = adjustedDetectionRange;
-                    break;
-                }
                 // Calculate world position along ray from radar position
                 const offsetX = currentRangeKm * Math.cos(azRad);
                 const offsetY = currentRangeKm * Math.sin(azRad);
@@ -148,24 +206,44 @@ export class Radar {
                 };
                 // Sample rain rate using bilinear interpolation for smooth values
                 const rainRate = this.sampleRainRateBilinear(worldPos, scenario, maxPrecipitationRate);
-                if (rainRate !== null) {
-                    // Accumulate attenuation only if there's significant rain
-                    if (rainRate > 1.0) { // Threshold to avoid noise
-                        const specificAttenuation = this.getSpecificAttenuation(rainRate); // dB/km
-                        // Two-way path: signal travels to target and back
-                        const stepAttenuationDb = (specificAttenuation * rangeStepKm);
-                        totalAttenuationDb += stepAttenuationDb;
+                if (rainRate !== null && rainRate > 1.0) { // Threshold to avoid noise
+                    const specificAttenuation = this.getSpecificAttenuation(rainRate); // dB/km one-way
+                    // Two-way path: signal travels to target and back
+                    const stepAttenuationDb = 2.0 * specificAttenuation * rangeStepKm;
+                    totalAttenuationDb += stepAttenuationDb;
+                }
+                // Calculate received power at this range with accumulated path attenuation
+                if (this.radarModel) {
+                    // Power-based calculation: compute received power and check SNR
+                    systemPowerWatts = this.calculateReceivedPower(systemPowerWatts, rangeStepKm, rcs, totalAttenuationDb);
+                    const snr = this.calculateSNR(systemPowerWatts, numPulses);
+                    // Check if SNR meets detection threshold
+                    if (snr >= this.radarModel.min_snr) {
+                        lastDetectableRange = currentRangeKm;
+                    }
+                    else {
+                        // Power has dropped below minimum SNR - this is our detection limit
+                        break;
                     }
                 }
-                // Update detection range for next iteration
-                detectionRange = adjustedDetectionRange;
+                else {
+                    // Legacy: use range reduction formula
+                    const effectiveRange = this.range * Math.pow(10, -totalAttenuationDb / 40);
+                    const rcsScaledRange = effectiveRange * Math.pow(rcs, 0.25);
+                    if (currentRangeKm <= rcsScaledRange) {
+                        lastDetectableRange = currentRangeKm;
+                    }
+                    else {
+                        break;
+                    }
+                }
             }
-            return detectionRange;
+            return lastDetectableRange > 0 ? lastDetectableRange : this.calculateDetectionRange(rcs, numPulses, this.range);
         }
         catch (error) {
             console.error('Failed to sample precipitation field:', error);
             // Fall back to unattenuated range if sampling fails
-            return this.calculateDetectionRange(rcs, 1.0, this.nominalRange);
+            return this.calculateDetectionRange(rcs, numPulses, this.range);
         }
     }
     /**
@@ -225,92 +303,8 @@ export class Radar {
         const b = this.imageData.data[pixelIndex + 2];
         return (r + g + b) / 3;
     }
-    /**
-     * Position to image coordinates
-     */
-    worldToImageCoordinates(position, scenario) {
-        // World coordinates: origin at center, Y increases upward
-        // Image coordinates: origin at top-left, Y increases downward
-        let originX = 0;
-        let originY = 0;
-        if (scenario.grid.origin !== undefined) {
-            originX = scenario.grid.origin.x;
-            originY = scenario.grid.origin.y;
-        }
-        const resolution = scenario.grid.resolution; // pixels per km
-        const gridWidthKm = scenario.grid.width; // grid width in km
-        const gridHeightKm = scenario.grid.height; // grid height in km
-        const widthPixels = gridWidthKm * resolution;
-        const heightPixels = gridHeightKm * resolution;
-        // Center of image in pixel coordinates
-        const centerPixelX = Math.floor(widthPixels / 2);
-        const centerPixelY = Math.floor(heightPixels / 2);
-        // Transform world position relative to origin, then to pixel coordinates
-        // X: positive world X = positive pixel offset from center
-        // Y: positive world Y = positive pixel offset from center (flip Y axis)
-        let ix = centerPixelX + Math.floor((position.x - originX) * resolution);
-        let iy = centerPixelY + Math.floor((position.y - originY) * resolution); //image is flipped vertically in visualization so we match here
-        // Clamp to image bounds
-        if (ix < 0 || ix >= widthPixels || iy < 0 || iy >= heightPixels) {
-            console.warn(`Position (${position.x.toFixed(1)}, ${position.y.toFixed(1)}) km maps outside image bounds to pixel (${ix}, ${iy})`);
-            ix = Math.max(0, Math.min(widthPixels - 1, ix));
-            iy = Math.max(0, Math.min(heightPixels - 1, iy));
-        }
-        return { ix, iy };
-    }
-    imageToWorldCoordinates(ix, iy, scenario) {
-        // Image coordinates: origin at top-left, Y increases downward  
-        // World coordinates: origin at center, Y increases upward
-        let originX = 0;
-        let originY = 0;
-        if (scenario.grid.origin !== undefined) {
-            originX = scenario.grid.origin.x;
-            originY = scenario.grid.origin.y;
-        }
-        const resolution = scenario.grid.resolution; // pixels per km
-        const gridWidthKm = scenario.grid.width; // grid width in km
-        const gridHeightKm = scenario.grid.height; // grid height in km
-        const widthPixels = gridWidthKm * resolution;
-        const heightPixels = gridHeightKm * resolution;
-        // Center of image in pixel coordinates
-        const centerPixelX = Math.floor(widthPixels / 2);
-        const centerPixelY = Math.floor(heightPixels / 2);
-        // Convert pixel offset from center to world coordinates
-        // X: positive pixel offset = positive world X
-        // Y: positive pixel offset = negative world Y (flip Y axis)
-        const x = originX + (ix - centerPixelX) / resolution;
-        const y = originY - (iy - centerPixelY) / resolution;
-        return { x, y };
-    }
     degToRad(deg) {
         return (deg * Math.PI) / 180;
-    }
-    radToDeg(rad) {
-        return (rad * 180) / Math.PI;
-    }
-    polarToCartesian(radius, angleDeg) {
-        const angleRad = this.degToRad(angleDeg);
-        return {
-            x: radius * Math.cos(angleRad),
-            y: radius * Math.sin(angleRad),
-        };
-    }
-    /**
-     * Apply path attenuation to detection range
-     * Attenuation reduces received power, affects range by R ∝ P^0.25
-     * Since R^4 ∝ P, and attenuation is in dB: 10*log10(P1/P2) = attenuation
-     * Therefore: R2/R1 = (P2/P1)^0.25 = 10^(-attenuation/40)
-     *
-     * @param baseRange - Original detection range (km)
-     * @param attenuationDb - Total path attenuation (dB)
-     * @returns Attenuated detection range (km)
-     */
-    applyPathAttenuation(baseRange, attenuationDb) {
-        // Range reduction factor from attenuation
-        // dB = 10*log10(P1/P2), so P2/P1 = 10^(-dB/10)
-        // Range scales with power^0.25, so R2/R1 = (P2/P1)^0.25 = 10^(-dB/40)
-        const rangeReductionFactor = Math.pow(10, -attenuationDb / 40);
-        return baseRange * rangeReductionFactor;
     }
     /**
      * Given rain rate (mm/hr), get specific attenuation (dB/km) from ITU data
@@ -320,18 +314,6 @@ export class Radar {
             throw new Error('ITU data not loaded');
         }
         return itu.getAttenuation(this.frequency, rainRate);
-    }
-    /**
-     * Get radar operating frequency
-     */
-    getFrequency() {
-        return this.frequency;
-    }
-    /**
-     * Get nominal range
-     */
-    getNominalRange() {
-        return this.nominalRange;
     }
 }
 //# sourceMappingURL=Radar.js.map

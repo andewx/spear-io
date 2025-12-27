@@ -172,8 +172,10 @@ export class SimulationController {
         // Get detection range at fighter's current position/azimuth
         const azimuth = this.calculateAzimuth(samPos, fighterPos);
         const fighterRCS = firstFighter.getRCSFromPosition(fighterPos, samPos, azimuth);
+        // Use typical burst size for pulse integration (10 pulses)
+        const numPulses = 10;
         // TODO: Implement getRangeAtAzimuth for multi-platform scenarios
-        const detectionRange = firstSAM.calculateDetectionRange(fighterRCS, firstSAM.pulseMode.numPulses, firstSAM.nominalRange);
+        const detectionRange = firstSAM.calculateDetectionRange(fighterRCS, numPulses, firstSAM.range);
         // Get missile states - create copies of all position objects
         const missiles = this.scenario.getMissiles().map((missile, index) => ({
             id: missile.launchedBy === 'sam' ? `SAM-${missile.timeOfLaunch}` : `HARM-${missile.timeOfLaunch}`,
@@ -248,37 +250,7 @@ export class SimulationController {
             res.status(500).json(response);
         }
     }
-    /**
-     * GET /api/simulation/sam/nominal-ranges
-     * Get SAM system nominal ranges profile
-     */
     async getRangesProfile(req, res) {
-        try {
-            // TODO: Implement getRanges logic for multi-platform scenarios
-            // For now, return first SAM's ranges
-            const firstSAM = this.scenario.scenarioSams[0];
-            if (!firstSAM) {
-                throw new Error('No SAM system found in scenario');
-            }
-            const ranges = firstSAM.getRangesAzimuth();
-            console.log(`SAM Ranges Profile Request Received${ranges}\n`);
-            const response = {
-                success: true,
-                data: ranges,
-            };
-            res.json(response);
-        }
-        catch (error) {
-            this.handleError(res, error);
-            console.error('Error getting SAM nominal ranges profile:', error);
-            const response = {
-                success: false,
-                error: 'Error retrieving SAM nominal ranges profile',
-            };
-            res.status(500).json(response);
-        }
-    }
-    async getPrecipRangesProfile(req, res) {
         try {
             // TODO: Implement getPrecipitationRanges logic for multi-platform scenarios
             // For now, return first SAM's precipitation ranges
@@ -286,7 +258,9 @@ export class SimulationController {
             if (!firstSAM) {
                 throw new Error('No SAM system found in scenario');
             }
-            const ranges = firstSAM.precipRangesAzimuth;
+            const numPulses = 10; // Typical burst size for pulse integration
+            await firstSAM.getPrecipitationRanges(numPulses);
+            const ranges = firstSAM.ranges;
             const response = {
                 success: true,
                 data: { ranges: ranges },

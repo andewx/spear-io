@@ -179,17 +179,11 @@ const simulationAPI = {
     });
   },
 
-  /**
-   * Get SAM nominal ranges profile
-   */
-  async getNominalRanges() {
-    return fetchAPI('/simulation/sam/nominal-ranges');
-  },
 
   /**
    * Get SAM precipitation-attenuated ranges profile
    */
-  async getPrecipRanges() {
+  async getRanges() {
     return fetchAPI('/simulation/getRanges', {
       method: 'POST',
     });

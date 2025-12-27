@@ -37,7 +37,7 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   const nominalRCS = 1.0; // m²
   
   // Convert range from km to meters
-  const rangeMeters = range * 1000;
+  const rangeMeters = sys.range * 1000;
   
   // Convert antenna gain from dB to linear
   const antennaGainLinear = dbToLinear(antenna_gain);
@@ -66,9 +66,9 @@ export function createRadar(sys: ISAMSystem, antenna_gain:  number): IRadarModel
   const min_snr = calculateMinSNRSwerling(0.9, 1e-6, 2, 1);
   
   return {
-    nominalRange: range,
+    range: rangeMeters / 1000,
     antennaGain: antenna_gain,
-    emitterPower: linearToDb(transmitPower / 1000),
+    emitterPower: linearToDb(transmitPower / 1000), // kW in dBk
     noiseFloor: noiseFloor,
     frequency: FREQUENCY / 1e9, // Store in GHz
     wavelength: wavelength,
@@ -193,59 +193,6 @@ export function isInVulnerabilityWindow(
   return samToFighterDistance <= memr * memrRatio;
 }
 
-/**
- * Calculate engagement result for SAM vs Fighter scenario
- * 
- * @param sam - SAM system configuration
- * @param fighter - Fighter platform configuration
- * @param samPosition - SAM position
- * @param fighterPosition - Fighter position
- * @param pathAttenuationDb - Attenuation along radar path (dB)
- * @returns Object with kill times and success flag
- */
-export function calculateEngagement(
-  sam: ISAMSystem,
-  fighter: IFighterPlatform,
-  samPosition: IPosition2D,
-  fighterPosition: IPosition2D,
-  pathAttenuationDb: number,
-  fighterRCS: number // Aspect-dependent RCS
-): {
-  detectionRange: number;
-  currentDistance: number;
-  samKillTime: number;
-  harmKillTime: number;
-  success: boolean;
-  detected: boolean;
-} {
-  const currentDistance = calculateDistance(samPosition, fighterPosition);
-
-  // Calculate adjusted detection range
-  let detectionRange = calculateDetectionRange(sam.nominalRange, fighterRCS);
-  detectionRange = applyAttenuation(detectionRange, pathAttenuationDb);
-
-  const detected = currentDistance <= detectionRange;
-
-  // Calculate SAM kill time (acquisition + missile flight)
-  const acquisitionTime = sam.autoAcquisitionTime; // Assuming automatic for now
-  const samMissileFlightTime = calculateMissileFlightTime(currentDistance, sam.missileVelocity);
-  const samKillTime = acquisitionTime + samMissileFlightTime;
-
-  // Calculate HARM kill time (launch + missile flight)
-  const harmMissileFlightTime = calculateMissileFlightTime(currentDistance, fighter.harmParams.velocity);
-  const harmKillTime = harmMissileFlightTime; // Assume immediate launch when in window
-
-  const success = harmKillTime < samKillTime;
-
-  return {
-    detectionRange,
-    currentDistance,
-    samKillTime,
-    harmKillTime,
-    success,
-    detected,
-  };
-}
 
 /**
  * Get aspect-dependent RCS from fighter platform

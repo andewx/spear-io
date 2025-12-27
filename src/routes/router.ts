@@ -77,10 +77,6 @@ router.get('/simulation/state', (req, res) => {
 });
 
 router.post('/simulation/getRanges', (req, res) => {
-    simulationController.getPrecipRangesProfile(req, res);
-});
-
-router.get('/simulation/sam/nominal-ranges', (req, res) => {
     simulationController.getRangesProfile(req, res);
 });
 

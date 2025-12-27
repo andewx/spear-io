@@ -12,7 +12,7 @@
     <div class="row">
       <div class="col-md-6 mb-3">
         <label class="form-label">System ID</label>
-        <input type="text" name="sam_id" class="form-control bg-dark text-light border-secondary" value="<%= platform.id %>" readonly>
+        <input type="hidden" name="sam_id" class="form-control bg-dark text-light border-secondary" value="<%= platform.id %>" readonly>
         <small class="text-muted">ID cannot be changed</small>
       </div>
       <div class="col-md-6 mb-3">
@@ -25,33 +25,18 @@
     <div class="row">
       <div class="col-md-4 mb-3">
         <label class="form-label">Nominal Range (km)</label>
-        <input type="number" name="radar[nominalRange]" class="form-control bg-dark text-light border-secondary" value="<%= platform.nominalRange %>" required>
+        <input type="number" name="radar[range]" class="form-control bg-dark text-light border-secondary" value="<%= platform.range %>" required>
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Frequency (GHz)</label>
-        <input type="number" step="0.1" name="radar[frequency]" class="form-control bg-dark text-light border-secondary" value="<%= platform.systemFrequency %>" required>
+        <input type="number" step="0.1" name="radar[frequency]" class="form-control bg-dark text-light border-secondary" value="<%= platform.frequency %>" required>
       </div>
       <div class="col-md-4 mb-3">
-        <label class="form-label">Pulse Model</label>
-        <select name="radar[pulseModel]" class="form-select bg-dark text-light border-secondary" required>
-          <option value="short" <%= platform.pulseModel === 'short' ? 'selected' : '' %>>Short</option>
-          <option value="medium" <%= platform.pulseModel === 'medium' ? 'selected' : '' %>>Medium</option>
-          <option value="long" <%= platform.pulseModel === 'long' ? 'selected' : '' %>>Long</option>
-        </select>
+        <label class="form-label">Antenna Gain (dB)</label>
+        <input type="number" step="0.1" name="radar[antennaGain]" class="form-control bg-dark text-light border-secondary" value="<%= platform.radar.antennaGain %>" required>
       </div>
     </div>
 
-    <h6 class="text-secondary mt-3">Acquisition</h6>
-    <div class="row">
-      <div class="col-md-6 mb-3">
-        <label class="form-label">Manual Time (sec)</label>
-        <input type="number" name="acquisition[manualTime]" class="form-control bg-dark text-light border-secondary" value="<%= platform.manualAcquisitionTime %>" required>
-      </div>
-      <div class="col-md-6 mb-3">
-        <label class="form-label">Auto Time (sec)</label>
-        <input type="number" name="acquisition[autoTime]" class="form-control bg-dark text-light border-secondary" value="<%= platform.autoAcquisitionTime %>" required>
-      </div>
-    </div>
 
     <h6 class="text-secondary mt-3">Missile</h6>
     <div class="row">
@@ -61,11 +46,7 @@
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Velocity (Mach)</label>
-        <input type="number" step="0.1" name="missile[velocity]" class="form-control bg-dark text-light border-secondary" value="<%= platform.missileVelocity %>" required>
-      </div>
-      <div class="col-md-4 mb-3">
-        <label class="form-label">Tracking Radar (GHz)</label>
-        <input type="number" step="0.1" name="missile[trackingRadarFrequency]" class="form-control bg-dark text-light border-secondary" value="<%= platform.missileTrackingFrequency %>" required>
+        <input type="number" step="0.1" name="missile[vel]" class="form-control bg-dark text-light border-secondary" value="<%= platform.vel %>" required>
       </div>
     </div>
   <% } else { %>
@@ -75,7 +56,7 @@
     <div class="row">
       <div class="col-md-6 mb-3">
         <label class="form-label">Aircraft ID</label>
-        <input type="text" name="fighter_id" class="form-control bg-dark text-light border-secondary" value="<%= platform.id %>" readonly>
+        <input type="hidden" name="fighter_id" class="form-control bg-dark text-light border-secondary" value="<%= platform.id %>" readonly>
         <small class="text-muted">ID cannot be changed</small>
       </div>
       <div class="col-md-6 mb-3">

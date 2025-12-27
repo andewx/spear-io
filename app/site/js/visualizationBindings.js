@@ -41,13 +41,6 @@ async function handleCanvasMouseDown(event) {
     const scaleY = visualization.canvas.height / rect.height;
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
-    
-
-    console.log('Mouse click - clientX:', event.clientX, 'clientY:', event.clientY);
-    console.log('Canvas rect - left:', rect.left, 'top:', rect.top, 'width:', rect.width, 'height:', rect.height);
-    console.log('Canvas internal size - width:', visualization.canvas.width, 'height:', visualization.canvas.height);
-    console.log('Scale factors - scaleX:', scaleX, 'scaleY:', scaleY);
-    console.log('Scaled canvas coords - x:', x, 'y:', y);
 
     lastMousePos = { x, y };
 
@@ -226,7 +219,7 @@ function updateEditModeIndicator() {
     }
 }
 
-/**
+/*
  * Save updated fighter position/heading to backend
  */
 async function saveFighterUpdate(fighterIndex, fighter) {

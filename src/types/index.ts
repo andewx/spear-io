@@ -7,25 +7,20 @@
 // Platform Types
 // ============================================================================
 
-export type TPulseModel = 'short' | 'medium' | 'long';
 
 export interface ISAMSystem {
   id: string;
   name: string;
-  pulseModel: TPulseModel;
-  manualAcquisitionTime: number; // seconds
-  autoAcquisitionTime: number; // seconds
   memr: number; // Maximum Effective Missile Range )
-  missileVelocity: number; // Mach number
-  systemFrequency: number; // GHz
-  missileTrackingFrequency: number; // GHz
-  nominalRange: number;
+  vel: number; // Mach number
+  frequency: number; // GHz
+  range: number;
   radar: IRadarModel; //IRadar Mode 
 }
 
 
  export interface IRadarModel{
-  nominalRange: number; // nominalRnage against 1.0m^2 target
+  range: number; // nominalRnage against 1.0m^2 target
   antennaGain: number; // [antennaGain in system)
   frequency: number;
   wavelength: number;

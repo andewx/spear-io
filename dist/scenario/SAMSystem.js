@@ -3,28 +3,17 @@
  * Represents a Surface-to-Air Missile system with radar and missile characteristics
  */
 import { Radar } from './Radar.js';
-/**
- * Pulse integration configurations for different pulse models
- */
-const PULSE_INTEGRATION_CONFIGS = {
-    short: { numPulses: 4, mode: 'noncoherent' },
-    medium: { numPulses: 10, mode: 'noncoherent' },
-    long: { numPulses: 20, mode: 'coherent' },
-};
 export class SAMSystem {
     id;
     name;
     properties;
-    pulseMode;
     trackedTargets = new Map();
     radar;
     state;
-    trackingRadar;
-    missileVelocity;
-    nominalRange;
-    nominalRangesAzimuth = []; // Precomputed nominal ranges over azimuth
-    precipRangesAzimuth = []; // Precomputed ranges with precipitation attenuation
+    range;
+    ranges = []; // Precomputed ranges with precipitation attenuation
     numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
+    scenario; // Reference to scenario for precipitation field access
     //TODO: Move these properties and others to ISAMSystem interface and store with platform
     launchIntervalSec = 5; // seconds between launches
     position = { x: 0, y: 0 }; // SAM position in km
@@ -39,37 +28,19 @@ export class SAMSystem {
         this.name = platform.name;
         this.properties = platform;
         this.state = 'active';
-        // Create main search/track radar
-        const pulseStruct = PULSE_INTEGRATION_CONFIGS[platform.pulseModel];
-        this.pulseMode = { numPulses: pulseStruct.numPulses, mode: pulseStruct.mode };
+        this.scenario = scenario; // Store scenario reference
+        // Create main search/track radar with detailed radar model if available
         this.radar = new Radar({
-            nominalRange: platform.nominalRange,
-            frequency: platform.systemFrequency,
-            pulseIntegration: { numPulses: pulseStruct.numPulses, mode: pulseStruct.mode },
+            range: platform.range,
+            frequency: platform.frequency,
+            radarModel: platform.radar, // Pass IRadarModel for power-based calculations
         });
-        this.nominalRange = platform.nominalRange;
-        //We assume nominal ranges are at 1.0 RCS target AND without pulse integration gain
-        this.nominalRangesAzimuth = [];
+        this.range = platform.range;
         //Ensure that all numeric properties are numbers
-        this.properties.nominalRange = Number(this.properties.nominalRange);
-        this.properties.manualAcquisitionTime = Number(this.properties.manualAcquisitionTime);
-        this.properties.autoAcquisitionTime = Number(this.properties.autoAcquisitionTime);
+        this.properties.range = Number(this.properties.range);
         this.properties.memr = Number(this.properties.memr);
-        this.properties.missileVelocity = Number(this.properties.missileVelocity);
-        this.properties.systemFrequency = Number(this.properties.systemFrequency);
-        this.properties.missileTrackingFrequency = Number(this.properties.missileTrackingFrequency);
-        for (let i = 0; i < this.numAzimuths; i++) {
-            this.nominalRangesAzimuth.push(platform.nominalRange);
-        }
-        //Missile tracking radar has no pulse integration
-        const missileTrackingPulseStruct = { numPulses: 1, mode: 'noncoherent' };
-        // Create missile terminal tracking radar (no pulse integration)
-        this.trackingRadar = new Radar({
-            nominalRange: platform.nominalRange * 0.1, // Terminal radar typically shorter range
-            frequency: platform.missileTrackingFrequency,
-            pulseIntegration: { numPulses: missileTrackingPulseStruct.numPulses, mode: missileTrackingPulseStruct.mode },
-        });
-        this.missileVelocity = platform.missileVelocity;
+        this.properties.vel = Number(this.properties.vel);
+        this.properties.frequency = Number(this.properties.frequency);
     }
     getRangeAtAzimuth(azimuthDeg) {
         const azimuths = this.getDetectionRanges();
@@ -78,7 +49,7 @@ export class SAMSystem {
         return azimuths[azimuthIndex];
     }
     getDetectionRanges() {
-        const adjustedRanges = this.precipRangesAzimuth.map((nominalRange) => {
+        const adjustedRanges = this.ranges.map((nominalRange) => {
             const detectionRange = this.radar.calculateDetectionRange(1.0, 1.0, nominalRange);
             return detectionRange;
         });
@@ -94,16 +65,16 @@ export class SAMSystem {
         }
         return azimuthDeg;
     }
-    async initPrecipitationField(scenario) {
-        if (scenario.environment.precipitation.enabled && scenario.precipitationFieldImage) {
-            await this.radar.loadImageDataFromScenario(scenario);
-            this.calculateDetectionRangesWithSampling(scenario);
+    async getPrecipitationRanges(numPulses) {
+        if (this.scenario.environment.precipitation.enabled && this.scenario.precipitationFieldImage) {
+            await this.radar.loadImageDataFromScenario(this.scenario);
+            this.calculateDetectionRangesWithSampling(this.scenario, numPulses);
         }
     }
     getMissileProperties() {
         return {
             memr: this.properties.memr,
-            velocity: this.missileVelocity,
+            velocity: this.properties.vel,
         };
     }
     getTrackings() {
@@ -113,42 +84,29 @@ export class SAMSystem {
      * Calculate detection range for a target with given RCS and path attenuation
      *
      * @param rcs - Target RCS (m²)
-     * @param pathAttenuationDb - Path attenuation (dB)
+     * @param pulses - Number of integrated pulses
+     * @param range - Base range to scale from
      * @returns Detection range (km)
      */
     calculateDetectionRange(rcs, pulses, range) {
         return this.radar.calculateDetectionRange(rcs, pulses, range);
     }
-    // Calculates nominal detection ranges over azimuth without precipitation attenuation
-    calculateDetectionRanges(scenario) {
-        const samPosition = this.position;
-        for (let i = 0; i < this.numAzimuths; i++) {
-            const azimuthDeg = (i * 360) / this.numAzimuths;
-            const range = this.radar.calculateDetectionRange(1.0, // nominal RCS
-            this.pulseMode.numPulses, this.nominalRange);
-            this.nominalRangesAzimuth.push(range);
-        }
-        return this.nominalRangesAzimuth.length;
-    }
     /**
      * Calculate detection range with attenuation precipitation sampling method along azimuth
      * use radar.calculateDetectionRange(rcs, range) when applying a specific RCS
+     *
+     * @param scenario - Scenario with precipitation field
+     * @param numPulses - Number of pulses to integrate (default 1)
      */
-    calculateDetectionRangesWithSampling(scenario) {
+    calculateDetectionRangesWithSampling(scenario, numPulses = 1) {
         const samPosition = this.position;
         for (let i = 0; i < this.numAzimuths; i++) {
             const azimuthDeg = (360 / this.numAzimuths) * i;
             const range = this.radar.calculateDetectionRangeWithPrecipitationFieldSampling(1.0, // nominal RCS
-            samPosition, azimuthDeg, scenario);
-            this.precipRangesAzimuth.push(range);
+            samPosition, azimuthDeg, scenario, numPulses);
+            this.ranges.push(range);
         }
-        return this.precipRangesAzimuth.length;
-    }
-    /**
-     * Get Ranges Azimuth Array for nominal range adjustment without RCS recalulation
-     */
-    getRangesAzimuth() {
-        return this.nominalRangesAzimuth;
+        return this.ranges.length;
     }
     /**
      * Calculate time for missile to reach target
@@ -158,27 +116,9 @@ export class SAMSystem {
      */
     calculateMissileFlightTime(distance) {
         const speedOfSound = 343; // m/s at sea level
-        const velocityMs = this.missileVelocity * speedOfSound;
+        const velocityMs = this.properties.vel * speedOfSound;
         const velocityKmS = velocityMs / 1000;
         return distance / velocityKmS;
-    }
-    /**
-     * Calculate total kill time (acquisition + missile flight)
-     *
-     * @param distance - Distance to target (km)
-     * @param autoAcquisition - Use automatic acquisition time
-     * @returns Total kill time (seconds)
-     */
-    calculateKillTime(distance, autoAcquisition = true) {
-        const acquisitionTime = autoAcquisition ? this.properties.autoAcquisitionTime : this.properties.manualAcquisitionTime;
-        const flightTime = this.calculateMissileFlightTime(distance);
-        return acquisitionTime + flightTime;
-    }
-    /**
-     * Check if target is within MEMR
-     */
-    isWithinMEMR(distance) {
-        return distance <= this.properties.memr;
     }
 }
 //# sourceMappingURL=SAMSystem.js.map

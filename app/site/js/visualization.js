@@ -164,7 +164,6 @@ class RadarVisualization {
       targetFilename = this.scenario.precipitationFieldImage;
     }
     
-    console.log('Loading precipitation image:', targetFilename, 'type:', this.precipImageType);
     const img = new Image();
     img.onload = () => {
       console.log('Precipitation image loaded:', targetFilename);
@@ -599,7 +598,6 @@ class RadarVisualization {
           position = this.selectedFighter.position;
           headingDegrees = this.selectedFighter.heading * 180 / Math.PI;
           heading = this.selectedFighter.heading;
-             console.log(`Rendering Fighter at Degrees: ${headingDegrees} Radians: ${heading}`);
         }
 
     
