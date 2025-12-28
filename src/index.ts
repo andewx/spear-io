@@ -81,6 +81,11 @@ app.use('/api', apiRouter);
 // Web routes (handled by controllers with template rendering)
 app.use('/', apiRouter);
 
+// Request logging middleware for debugging
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  process.stdout.write(`[${new Date().toISOString()}] ${req.method} ${req. url} from ${req.ip}\n`);
+  next();
+});
 
 
 // ============================================================================
