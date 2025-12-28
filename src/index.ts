@@ -135,6 +135,12 @@ async function cmdShutdown(): Promise<void>{
  * Initialize readline interface for interactive commands
  */
 function initializeCommandInterface(): readline.Interface {
+
+ if(!process.stdin.isTTY){
+  process.stdout.write('[INFO] Non-interactive mode detected (no TTY).Readline disables\n');
+   return null;
+ }
+  
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -294,11 +300,15 @@ const main = async (): Promise<void> => {
       process.stdout.write(`  - GET    /api/synthetic/precipitation/:filename\n`);
       process.stdout.write('================================================================\n');
       process.stdout.write('Type "help" for available commands\n\n');
+
+
       
-      // Initialize command interface
-      if (process.stdin.isTTY){
-        const rl = initializeCommandInterface();
+      const rl = initializeCommandInterface();
+      if(r1){
+        process.stdout.write('Type help for availabl commands\n\n');
         rl.prompt();
+      }else{
+        process.stdout.write('Running in production mode (no interactive commands)\n\n');
       }
 
     });
