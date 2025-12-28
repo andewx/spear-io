@@ -43,5 +43,5 @@ RUN mkdir -p /app/src/data/images
 COPY --from=build /app /app
 
 # Start the server by default, this can be overwritten at runtime
-EXPOSE 8080
+EXPOSE 3000
 CMD [ "npm", "run", "start" ]
