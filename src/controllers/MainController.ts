@@ -20,6 +20,7 @@ export class MainController {
       await httpCommand(cmd);
       const response: TAPIResponse<never> = {
         success: true,
+        data:never;
       };
       
       res.json(response);
