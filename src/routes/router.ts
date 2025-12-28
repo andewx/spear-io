@@ -9,6 +9,7 @@ import { ScenarioController } from '../controllers/ScenarioController.js';
 import { SimulationController } from '../controllers/SimulationController.js';
 import { SyntheticController } from '../controllers/SyntheticController.js';
 import { FormController } from '../controllers/FormController.js';
+import { MainController } from '../controllers/MainController.js';
 
 // Initialize controllers
 const platformController = new PlatformController();
