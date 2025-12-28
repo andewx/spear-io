@@ -90,7 +90,34 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // ============================================================================
 // Command Interface
 // ============================================================================
+async httpCommand(cmd: string): Promise<void>{
+  switch(cmd){
+    case 'quit':
+      await cmdShutdown();
+      break;
+    default:
+      process.stdout.write('Unknown Command\n');
+  }
+}
 
+async cmdShutdown(): Promise<void>{
+ process.stdout.write('\nShutting down server...\n');
+  
+  if (server) {
+    server.close(() => {
+      process.stdout.write('Server closed.\n');
+      process.exit(0);
+    });
+    
+    // Force close after 5 seconds
+    setTimeout(() => {
+      process.stderr.write('Forced shutdown after timeout.\n');
+      process.exit(1);
+    }, 5000);
+  } else {
+    process.exit(0);
+  }
+}
 /**
  * Initialize readline interface for interactive commands
  */
