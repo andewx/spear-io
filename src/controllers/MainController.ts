@@ -5,7 +5,7 @@
 
 import type { Request, Response } from 'express';
 import type { TAPIResponse } from '../types/index.js';
-import httpCommand from '../index.js';
+import {httpCommand} from '../index.js';
 
 export class MainController {
   /**
@@ -18,7 +18,7 @@ export class MainController {
 
       // Call main process command
       await httpCommand(cmd);
-      const response: TAPIResponse<typeof any> = {
+      const response: TAPIResponse<typeof {}> = {
         success: true,
         data: {},
       };
