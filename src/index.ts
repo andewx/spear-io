@@ -304,7 +304,7 @@ const main = async (): Promise<void> => {
 
       
       const rl = initializeCommandInterface();
-      if(r1){
+      if(rl){
         process.stdout.write('Type help for availabl commands\n\n');
         rl.prompt();
       }else{
