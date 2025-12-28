@@ -67,6 +67,14 @@ app.get('/', async (req: Request, res: Response) => {
   }
 });
 
+
+
+
+// Add this to your index.ts routes section
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // API routes (must be before web routes to take precedence)
 app.use('/api', apiRouter);
 
