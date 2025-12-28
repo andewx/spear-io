@@ -269,7 +269,7 @@ export class Radar {
         
     
         
-        if (rainRate !== null && rainRate > 0.01) { // Threshold to avoid noise
+        if (rainRate !== null) { // Threshold to avoid noise
           const specificAttenuation = this.getSpecificAttenuation(rainRate); // dB/km one-way
           // Two-way path: signal travels to target and back
           stepAttenuationDb = specificAttenuation * rangeStepKm;
