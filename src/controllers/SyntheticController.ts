@@ -59,6 +59,20 @@ export class SyntheticController {
       // Generate precipitation field
       const { imageFilename, overlayFilename, jetFilename } = await this.generateFieldImage(scenario);
 
+      //Delete the previous stored images if they exist
+      if(scenario.precipitationFieldImage){
+        const oldImagePath = path.join(PRECIPITATION_DIR, scenario.precipitationFieldImage);
+        fs.unlink(oldImagePath).catch(() => {});
+      }
+      if(scenario.precipitationFieldOverlay){
+        const oldOverlayPath = path.join(PRECIPITATION_DIR, scenario.precipitationFieldOverlay);
+        fs.unlink(oldOverlayPath).catch(() => {});
+      }
+      if(scenario.precipitationFieldJet){
+        const oldJetPath = path.join(PRECIPITATION_DIR, scenario.precipitationFieldJet);
+        fs.unlink(oldJetPath).catch(() => {});
+      }
+
       // Update scenario with image filename
       scenario.precipitationFieldImage = imageFilename;
       scenario.precipitationFieldOverlay = overlayFilename;
