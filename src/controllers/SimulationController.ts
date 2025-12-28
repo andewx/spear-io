@@ -98,14 +98,7 @@ export class SimulationController {
       //Get simulation key for validation
       const { simulationKey } = req.body as { simulationKey: string };
 
-      if (simulationKey !== this.simulationKey) {
-        const response: TAPIResponse<never> = {
-          success: false,
-          error: 'Invalid simulation key',
-        };
-        res.status(403).json(response);
-        return;
-      }
+
     
       while(!this.scenario.engagementComplete()){
         this.scenario.advanceSimulationTimeStep();
@@ -135,14 +128,6 @@ export class SimulationController {
     try {
       const { simulationKey } = req.body as { simulationKey: string };
 
-      if (simulationKey !== this.simulationKey) {
-        const response: TAPIResponse<never> = {
-          success: false,
-          error: 'Invalid simulation key',
-        };
-        res.status(403).json(response);
-        return;
-      }
 
       // Advance simulation by one time step
       const simulationComplete = this.scenario.advanceSimulationTimeStep();
