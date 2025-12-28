@@ -5,7 +5,7 @@
 
 import type { Request, Response } from 'express';
 import type { TAPIResponse } from '../types/index.js';
-import {httpCommand) from '../index.js';
+import httpCommand from '../index.js';
 
 export class MainController {
   /**
