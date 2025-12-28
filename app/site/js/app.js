@@ -123,7 +123,7 @@ function updateEditorPanel() {
           <div class="flex-grow-1">
             <small class="fw-bold text-light">${sam.name}</small>
             <br>
-            <small class="text-muted">${sam.nominalRange} km | ${sam.systemFrequency} GHz</small>
+            <small class="text-muted">${sam.range} km | ${sam.frequency} GHz</small>
           </div>
           <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-outline-primary py-0 px-2" 
