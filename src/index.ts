@@ -256,8 +256,10 @@ const main = async (): Promise<void> => {
       process.stdout.write('Type "help" for available commands\n\n');
       
       // Initialize command interface
-      const rl = initializeCommandInterface();
-      rl.prompt();
+      if (process.stdout.isTTY){
+        const rl = initializeCommandInterface();
+        rl.prompt();
+      }
     });
 
     // Handle process signals for graceful shutdown
