@@ -90,7 +90,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // ============================================================================
 // Command Interface
 // ============================================================================
-async function httpCommand(cmd: string): Promise<void>{
+export async function httpCommand(cmd: string): Promise<void>{
   switch(cmd){
     case 'quit':
       await cmdShutdown();
