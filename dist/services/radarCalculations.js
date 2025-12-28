@@ -38,7 +38,7 @@ export function createRadar(sys, antenna_gain) {
     // Calculate required transmit power using radar equation
     // R^4 = (P_t * G^2 * λ^2 * σ) / ((4π)^3 * P_min)
     const fourPiCubed = Math.pow(4 * Math.PI, 3);
-    const transmitPower = (Math.pow(rangeMeters, 4) * fourPiCubed * P_min_watts) /
+    const transmitPower = (10 * Math.pow(rangeMeters, 4) * fourPiCubed) /
         (Math.pow(antennaGainLinear, 2) * Math.pow(wavelength, 2) * nominalRCS);
     // Normalize power to a 0-1 scale based on typical radar power ranges
     // Typical fighter radars: 1-10 kW
@@ -50,11 +50,11 @@ export function createRadar(sys, antenna_gain) {
     const noiseFloor = 5 + (normalizedPower * 5); // Maps 0-1 to 5-10 dB
     const min_snr = calculateMinSNRSwerling(0.9, 1e-6, 2, 1);
     return {
-        range: rangeMeters / 1000,
+        range: sys.range,
         antennaGain: antenna_gain,
-        emitterPower: linearToDb(transmitPower / 1000), // kW in dBk
+        emitterPower: linearToDb(transmitPower), // kW in dBk
         noiseFloor: noiseFloor,
-        frequency: FREQUENCY / 1e9, // Store in GHz
+        frequency: sys.frequency, // Store in GHz
         wavelength: wavelength,
         pd: 0.9,
         min_dbm: P_min_dBm,

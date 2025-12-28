@@ -304,16 +304,35 @@ export class SimulationController {
 
   async getRangesProfile(req: Request, res: Response): Promise<void> {
     try {
-      // TODO: Implement getPrecipitationRanges logic for multi-platform scenarios
-      // For now, return first SAM's precipitation ranges
+      console.log("[getRangesProfile] Called");
+      console.log("[getRangesProfile] this.scenario exists?", !!this.scenario);
+      
+      // Check if simulation is initialized
+      if (!this.scenario) {
+        console.error("[getRangesProfile] Scenario not initialized!");
+        const response: TAPIResponse<never> = {
+          success: false,
+          error: 'Simulation not initialized. Call /api/simulation/init first.',
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      console.log("[getRangesProfile] Getting SAM scenario ranges profile...");
+      console.log("[getRangesProfile] Number of SAMs:", this.scenario.scenarioSams?.length);
+      
       const firstSAM = this.scenario.scenarioSams[0];
       if (!firstSAM) {
         throw new Error('No SAM system found in scenario');
       }
 
+      console.log("[getRangesProfile] SAM found:", firstSAM.id);
       const numPulses = 10; // Typical burst size for pulse integration
-
+      console.log("[getRangesProfile] Calling getPrecipitationRanges with numPulses:", numPulses);
+      
       await firstSAM.getPrecipitationRanges(numPulses);
+      
+      console.log("[getRangesProfile] Ranges calculated, length:", firstSAM.ranges.length);
       const ranges = firstSAM.ranges;
       const response: TAPIResponse<{ranges:Array<number>}> = {
         success: true,
@@ -321,8 +340,8 @@ export class SimulationController {
       };
       res.json(response);
     } catch (error) {
+      console.error('[getRangesProfile] Error:', error);
       this.handleError(res, error);
-      console.error('Error getting SAM scenario ranges profile:', error);
       const response: TAPIResponse<never> = {
         success: false,
         error: 'Error retrieving SAM scenario ranges profile',

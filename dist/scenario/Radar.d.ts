@@ -30,21 +30,21 @@ export declare class Radar {
     private calculatePulseIntegrationGain;
     /**
      * Calculate received power at a given range using radar equation
-     * P_r = (P_t * G^2 * λ^2 * σ) / ((4π)^3 * R^4)
-     *
-     * @param range - Range to target (km)
-     * @param rcs - Target radar cross section (m²)
+     * For two-way radar path: Path Loss = 32.45 + 20*log10(f_MHz) + 40*log10(R_km)
+     * Note: 40*log10(R) for radar (two-way), not 20*log10(R) which is one-way
+     * @param totalRangeKm - Total cumulative range from radar to target (km)
+     * @param frequency - Frequency in GHz
      * @param pathAttenuationDb - Two-way path attenuation in dB (default 0)
-     * @returns Received power in watts
+     * @returns Received power in dB relative to initial system power
      */
-    private calculateReceivedPower;
+    private pathLoss;
     /**
      * Calculate SNR for received power with pulse integration
-     * SNR = (P_r * N^α) / P_noise
-     * where α = 0.7 for non-coherent integration (Swerling 2)
+     * SNR = (P_r + G_integration) - P_noise
+     * Pulse integration gain already included in system power calculation
      *
-     * @param receivedPower - Received power per pulse (watts)
-     * @param numPulses - Number of integrated pulses
+     * @param receivedPowerDb - Received power in dB
+     * @param systemPowerDb - Initial system power (Pt + 2*G + RCS + λ² + integration gain) in dB
      * @returns SNR in dB
      */
     private calculateSNR;
@@ -88,6 +88,7 @@ export declare class Radar {
      * @returns detection range (km) where SNR falls below detection threshold
      */
     calculateDetectionRangeWithPrecipitationFieldSampling(rcs: number, position: IPosition2D, azimuth: number, scenario: IScenario, numPulses?: number): number;
+    private worldToImageCoords;
     /**
      * Sample rain rate using bilinear interpolation for smooth values
      * Returns null if position is outside image bounds

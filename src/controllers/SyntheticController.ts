@@ -349,6 +349,8 @@ export class SyntheticController {
 
       const imagePath = path.join(PRECIPITATION_DIR, filename);
 
+      console.log(`[SyntheticController.servePrecipitationImage] Serving image: ${imagePath}`);
+
       // Check if file exists
       try {
         await fs.access(imagePath);

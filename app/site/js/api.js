@@ -184,6 +184,7 @@ const simulationAPI = {
    * Get SAM precipitation-attenuated ranges profile
    */
   async getRanges() {
+    console.log("Fetching simulation precipitation-attenuated ranges profile...");
     return fetchAPI('/simulation/getRanges', {
       method: 'POST',
     });

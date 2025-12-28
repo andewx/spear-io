@@ -163,6 +163,8 @@ class RadarVisualization {
     } else {
       targetFilename = this.scenario.precipitationFieldImage;
     }
+
+    console.log(`Loading precipitation image: ${targetFilename}`);
     
     const img = new Image();
     img.onload = () => {

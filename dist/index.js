@@ -13,7 +13,7 @@ import apiRouter from './routes/router.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 8080;
 let server = null;
 // ============================================================================
 // View Engine Configuration
@@ -55,6 +55,10 @@ app.get('/', async (req, res) => {
         res.status(500).send('Error loading page');
     }
 });
+// Add this to your index.ts routes section
+app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
 // API routes (must be before web routes to take precedence)
 app.use('/api', apiRouter);
 // Web routes (handled by controllers with template rendering)
@@ -72,10 +76,40 @@ app.use((err, _req, res, _next) => {
 // ============================================================================
 // Command Interface
 // ============================================================================
+export async function httpCommand(cmd) {
+    switch (cmd) {
+        case 'quit':
+            await cmdShutdown();
+            break;
+        default:
+            process.stdout.write('Unknown Command\n');
+    }
+}
+async function cmdShutdown() {
+    process.stdout.write('\nShutting down server...\n');
+    if (server) {
+        server.close(() => {
+            process.stdout.write('Server closed.\n');
+            process.exit(0);
+        });
+        // Force close after 5 seconds
+        setTimeout(() => {
+            process.stderr.write('Forced shutdown after timeout.\n');
+            process.exit(1);
+        }, 5000);
+    }
+    else {
+        process.exit(0);
+    }
+}
 /**
  * Initialize readline interface for interactive commands
  */
 function initializeCommandInterface() {
+    if (!process.stdin.isTTY) {
+        process.stdout.write('[INFO] Non-interactive mode detected (no TTY).Readline disables\n');
+        return null;
+    }
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
@@ -196,7 +230,7 @@ const main = async () => {
         process.stdout.write('Loading ITU attenuation data...\n');
         await itu.loadITUData();
         // Start server
-        server = app.listen(PORT, () => {
+        server = app.listen(PORT, '0.0.0.0', () => {
             process.stdout.write(`\nServer running on http://localhost:${PORT}\n`);
             process.stdout.write(`API endpoints:\n`);
             process.stdout.write(`  - GET    /api/platforms\n`);
@@ -214,9 +248,14 @@ const main = async () => {
             process.stdout.write(`  - GET    /api/synthetic/precipitation/:filename\n`);
             process.stdout.write('================================================================\n');
             process.stdout.write('Type "help" for available commands\n\n');
-            // Initialize command interface
             const rl = initializeCommandInterface();
-            rl.prompt();
+            if (rl) {
+                process.stdout.write('Running in interactive mode\n\n');
+                rl.prompt();
+            }
+            else {
+                process.stdout.write('Running in production mode (no interactive commands)\n\n');
+            }
         });
         // Handle process signals for graceful shutdown
         process.on('SIGINT', async () => {

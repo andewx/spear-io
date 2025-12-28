@@ -10,7 +10,7 @@ import { SyntheticPrecipitationField } from '../synthetic/SyntheticPrecipitation
 import * as storage from '../services/fileStorage.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PRECIPITATION_DIR = path.join(__dirname, '..', 'data', 'precipitation');
+const PRECIPITATION_DIR = path.join(process.cwd(), 'src', 'data', 'images');
 export class SyntheticController {
     /**
      * POST /api/synthetic/precipitation
@@ -285,6 +285,7 @@ export class SyntheticController {
                 return;
             }
             const imagePath = path.join(PRECIPITATION_DIR, filename);
+            console.log(`[SyntheticController.servePrecipitationImage] Serving image: ${imagePath}`);
             // Check if file exists
             try {
                 await fs.access(imagePath);

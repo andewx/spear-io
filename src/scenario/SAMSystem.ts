@@ -35,8 +35,8 @@ export class SAMSystem {
   public readonly radar: Radar;
   public state: 'active' | 'destroyed';
   public readonly range: number;
-  public readonly ranges:Array<number>= []; // Precomputed ranges with precipitation attenuation
-  public readonly numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
+  public  ranges:Array<number>= []; // Precomputed ranges with precipitation attenuation
+  public readonly numAzimuths = 360; // e.g., 1 degree increments over 360 degrees
   private scenario: IScenario; // Reference to scenario for precipitation field access
 
   //TODO: Move these properties and others to ISAMSystem interface and store with platform
@@ -105,9 +105,21 @@ export class SAMSystem {
   }
 
   async getPrecipitationRanges(numPulses: number): Promise<void> {
+   
+
     if(this.scenario.environment.precipitation.enabled && this.scenario.precipitationFieldImage){
-      await this.radar.loadImageDataFromScenario( this.scenario);
+      console.log("[SAMSystem.getPrecipitationRanges] Loading image data from scenario...");
+      await this.radar.loadImageDataFromScenario( this.scenario); 
       this.calculateDetectionRangesWithSampling(this.scenario, numPulses);
+     
+    } else {
+      // No precipitation - populate with nominal ranges
+     
+      for (let i = 0; i < this.numAzimuths; i++) {
+        const nominalRange = this.radar.calculateDetectionRange(1.0, numPulses, this.range);
+        this.ranges.push(nominalRange);
+      }
+    
     }
   }
 
@@ -147,8 +159,10 @@ export class SAMSystem {
    */
   calculateDetectionRangesWithSampling(scenario: IScenario, numPulses: number = 1): number {
     const samPosition = this.position;
-    for (let i = 0; i < this.numAzimuths; i++) {
-      const azimuthDeg = ( 360/ this.numAzimuths)*i;
+    const N = this.numAzimuths;
+    this.ranges = []; // Clear existing ranges
+    for (let i = 0; i < N; i++) {
+      const azimuthDeg = ( 360/ N)*i;
       const range = this.radar.calculateDetectionRangeWithPrecipitationFieldSampling(
         1.0, // nominal RCS
         samPosition,

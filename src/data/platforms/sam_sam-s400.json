@@ -6,7 +6,7 @@
   "radar": {
     "range": 250,
     "antennaGain": "34",
-    "emitterPower": 41.91449618082402,
+    "emitterPower": 188.44,
     "noiseFloor": 10,
     "frequency": 6,
     "wavelength": 0.05,

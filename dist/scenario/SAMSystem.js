@@ -12,7 +12,7 @@ export class SAMSystem {
     state;
     range;
     ranges = []; // Precomputed ranges with precipitation attenuation
-    numAzimuths = 216; // e.g., 2.5 degree increments over 360 degrees
+    numAzimuths = 360; // e.g., 1 degree increments over 360 degrees
     scenario; // Reference to scenario for precipitation field access
     //TODO: Move these properties and others to ISAMSystem interface and store with platform
     launchIntervalSec = 5; // seconds between launches
@@ -67,8 +67,16 @@ export class SAMSystem {
     }
     async getPrecipitationRanges(numPulses) {
         if (this.scenario.environment.precipitation.enabled && this.scenario.precipitationFieldImage) {
+            console.log("[SAMSystem.getPrecipitationRanges] Loading image data from scenario...");
             await this.radar.loadImageDataFromScenario(this.scenario);
             this.calculateDetectionRangesWithSampling(this.scenario, numPulses);
+        }
+        else {
+            // No precipitation - populate with nominal ranges
+            for (let i = 0; i < this.numAzimuths; i++) {
+                const nominalRange = this.radar.calculateDetectionRange(1.0, numPulses, this.range);
+                this.ranges.push(nominalRange);
+            }
         }
     }
     getMissileProperties() {
@@ -100,8 +108,10 @@ export class SAMSystem {
      */
     calculateDetectionRangesWithSampling(scenario, numPulses = 1) {
         const samPosition = this.position;
-        for (let i = 0; i < this.numAzimuths; i++) {
-            const azimuthDeg = (360 / this.numAzimuths) * i;
+        const N = this.numAzimuths;
+        this.ranges = []; // Clear existing ranges
+        for (let i = 0; i < N; i++) {
+            const azimuthDeg = (360 / N) * i;
             const range = this.radar.calculateDetectionRangeWithPrecipitationFieldSampling(1.0, // nominal RCS
             samPosition, azimuthDeg, scenario, numPulses);
             this.ranges.push(range);

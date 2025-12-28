@@ -71,9 +71,10 @@ export class Scenario {
             // create SAMSystem instance
             const numPulses = 10; // Typical burst size for pulse integration
             const samSystem = new SAMSystem(samPlatform, scenario);
+            // IMPORTANT: set position before computing any range profiles.
+            samSystem.position = samPlatformData.position;
             await samSystem.radar.loadITUData();
             await samSystem.getPrecipitationRanges(numPulses);
-            samSystem.position = samPlatformData.position;
             samPlatforms.push(samSystem);
         }
         let fighterIndex = 0;

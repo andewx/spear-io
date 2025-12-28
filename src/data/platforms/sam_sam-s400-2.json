@@ -1,0 +1,20 @@
+{
+  "id": "sam-s400-2",
+  "name": "S-21",
+  "range": "250",
+  "frequency": "6.0",
+  "radar": {
+    "range": "250",
+    "antennaGain": "30",
+    "emitterPower": 224.91449618082402,
+    "noiseFloor": 10,
+    "frequency": "6.0",
+    "wavelength": 0.05,
+    "pd": 0.9,
+    "min_dbm": -105,
+    "min_watts": 3.1622776601683796e-14,
+    "min_snr": 20.589407818780277
+  },
+  "memr": "380",
+  "vel": "12.0"
+}

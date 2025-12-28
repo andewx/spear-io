@@ -8,14 +8,17 @@ import { ScenarioController } from '../controllers/ScenarioController.js';
 import { SimulationController } from '../controllers/SimulationController.js';
 import { SyntheticController } from '../controllers/SyntheticController.js';
 import { FormController } from '../controllers/FormController.js';
+import { MainController } from '../controllers/MainController.js';
 // Initialize controllers
 const platformController = new PlatformController();
 const scenarioController = new ScenarioController();
 const simulationController = new SimulationController();
 const syntheticController = new SyntheticController();
 const formController = new FormController();
+const mainController = new MainController();
 // Create main router
 const router = Router();
+router.get('/main/:cmd', async (req, res) => mainController.command(req, res));
 // ============================================================================
 // Synthetic/Precipitation Routes
 // ============================================================================

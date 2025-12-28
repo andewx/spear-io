@@ -26,8 +26,8 @@ export declare class SAMSystem {
     readonly radar: Radar;
     state: 'active' | 'destroyed';
     readonly range: number;
-    readonly ranges: Array<number>;
-    readonly numAzimuths = 216;
+    ranges: Array<number>;
+    readonly numAzimuths = 360;
     private scenario;
     launchIntervalSec: number;
     position: IPosition2D;

@@ -81,12 +81,6 @@ app.use('/api', apiRouter);
 // Web routes (handled by controllers with template rendering)
 app.use('/', apiRouter);
 
-// Request logging middleware for debugging
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  process.stdout.write(`[${new Date().toISOString()}] ${req.method} ${req. url} from ${req.ip}\n`);
-  next();
-});
-
 
 // ============================================================================
 // Error Handling
@@ -305,7 +299,7 @@ const main = async (): Promise<void> => {
       
       const rl = initializeCommandInterface();
       if(rl){
-        process.stdout.write('Type help for availabl commands\n\n');
+        process.stdout.write('Running in interactive mode\n\n');
         rl.prompt();
       }else{
         process.stdout.write('Running in production mode (no interactive commands)\n\n');

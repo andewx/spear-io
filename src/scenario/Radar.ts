@@ -55,7 +55,7 @@ export class Radar {
        // Construct file system path to precipitation image
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const imagePath = path.join(__dirname, '..', 'data', 'precipitation', scenario.precipitationFieldImage);
+    const imagePath = path.join(__dirname, '..', '..', 'src', 'data', 'images', scenario.precipitationFieldImage);
     
     console.log('\nLoading precipitation image from:', imagePath);
 
@@ -69,7 +69,10 @@ export class Radar {
       const canvas: Canvas = createCanvas(image.width, image.height);
       const ctx: CanvasRenderingContext2D = canvas.getContext('2d');
       
-      // Draw image to canvas
+
+      //Flip image vertically to match world coordinates
+      ctx.translate(0, image.height);
+      ctx.scale(1, -1);
       ctx.drawImage(image, 0, 0);
       
       // Extract pixel data
@@ -94,47 +97,41 @@ export class Radar {
 
   /**
    * Calculate received power at a given range using radar equation
-   * P_r = (P_t * G^2 * λ^2 * σ) / ((4π)^3 * R^4)
-   * @param dbPower - power input in db
-   * @param range - Range to target (km)
-   * @param rcs - Target radar cross section (m²)
+   * For two-way radar path: Path Loss = 32.45 + 20*log10(f_MHz) + 40*log10(R_km)
+   * Note: 40*log10(R) for radar (two-way), not 20*log10(R) which is one-way
+   * @param totalRangeKm - Total cumulative range from radar to target (km)
+   * @param frequency - Frequency in GHz
    * @param pathAttenuationDb - Two-way path attenuation in dB (default 0)
-   * @returns Received power in watts
+   * @returns Received power in dB relative to initial system power
    */
-  private calculateReceivedPower(dbPower: number, range: number,frequency:number, pathAttenuationDb: number = 0): number {
+  private pathLoss(totalRangeKm: number, stepRangeKm: number, frequency: number, pathAttenuationDb: number = 0): number {
     if (!this.radarModel) {
       throw new Error('Radar model required for power-based calculations');
     }
-    const fMhz = frequency * 1e-6;
-    const pathLossDb = 32.45 + 20*Math.log(range) + 20*Math.log(fMhz);
-    const newPowerDb = dbPower - pathLossDb - pathAttenuationDb;
-    return newPowerDb;
+    // Convert GHz to MHz for Friis formula
+    const f = frequency * 1e9;
+    const tRangeMeter = totalRangeKm * 1000;
+    const sRangeMeter = stepRangeKm * 1000;
+    // Two-way radar path loss: 32.45 + 20*log10(f_MHz) + 40*log10(R_km)
+    const pathLossDb = 20 * Math.log10((tRangeMeter + sRangeMeter)/tRangeMeter);
+    return pathLossDb + pathAttenuationDb;
   }
 
   /**
    * Calculate SNR for received power with pulse integration
-   * SNR = (P_r * N^α) / P_noise
-   * where α = 0.7 for non-coherent integration (Swerling 2)
+   * SNR = (P_r + G_integration) - P_noise
+   * Pulse integration gain already included in system power calculation
    * 
-   * @param receivedPower - Received power per pulse (watts)
-   * @param numPulses - Number of integrated pulses
+   * @param receivedPowerDb - Received power in dB
+   * @param systemPowerDb - Initial system power (Pt + 2*G + RCS + λ² + integration gain) in dB
    * @returns SNR in dB
    */
-  private calculateSNR(receivedPower: number, numPulses: number = 1): number {
+  private calculateSNR(receivedPowerDb: number, systemPowerDb: number): number {
     if (!this.radarModel) {
       throw new Error('Radar model required for SNR calculations');
     }
-
-    const dbPower = receivedPower;
-
-    // Noise power from minimum detectable signal
-    const noisePower = dbToLinear(this.radarModel.noiseFloor);
-
-
-
-    // SNR = (P_r * integration_gain) / P_noise in dB
-    const snr = linearToDb(receivedPower / noisePower);
-    return snr;
+    // SNR = System Power + Received Power (negative) - Noise Floor
+    return systemPowerDb + receivedPowerDb - this.radarModel.noiseFloor;
   }
 
   /**
@@ -153,7 +150,7 @@ export class Radar {
       return true;
     }
 
-    const receivedPower = this.calculateReceivedPower(range, rcs, pathAttenuationDb);
+    const receivedPower = this.pathLoss(range, rcs, pathAttenuationDb);
     const snr = this.calculateSNR(receivedPower, numPulses);
     
     return snr >= this.radarModel.min_snr;
@@ -223,24 +220,28 @@ export class Radar {
   ): number {
     // If no precipitation field image, return unattenuated range
     if (!scenario.precipitationFieldImage) {
-      console.log("No precipitation field image defined, returning unattenuated range.");
       return this.calculateDetectionRange(rcs, numPulses, this.range);
     }
 
     try {
+
       const pixelsPerKm = scenario.grid.resolution; // pixels per km
       const kmPerPixel = 1 / pixelsPerKm;
       const maxRangeKm = this.range * 1.5; // Sample beyond nominal for margin
-      const rangeStepKm = kmPerPixel * 0.1; // Sample at fine intervals
+      const rangeStepKm = kmPerPixel * 1.0; // Sample at fine intervals
       const NRay = Math.ceil(maxRangeKm / rangeStepKm);
       const frequency = this.radarModel.frequency;
+      const fHz = frequency * 1e9;
+      const wavelength = 3e8 / fHz;
       let totalAttenuationDb = 0; let stepAttenuationDb = 0;
 
       //Scenario max precipitation rate
       const maxPrecipitationRate = scenario.environment.precipitation.maxRainRateCap || 35; // mm/hr
 
-      // Total accumulated attenuation in dB (two-way path)
-      let sysPower = this.radarModel.emitterPower + Math.pow(this.radarModel.antennaGain,2) + linearToDb(rcs) + linearToDb(Math.pow(this.radarModel.wavelength,2)) + this.calculatePulseIntegrationGain(numPulses) // Convert kW to watts
+
+      // System power: Pt + 2*G + σ + λ² + integration gain (all in dB)
+      const sysPower = this.radarModel.emitterPower;
+      let currentPowerDb = sysPower - 20*Math.log10((4*Math.PI)/wavelength);
       const azRad = this.degToRad(azimuth);
       let lastDetectableRange = rangeStepKm;
 
@@ -252,30 +253,41 @@ export class Radar {
         // Calculate world position along ray from radar position
         const offsetX = currentRangeKm * Math.cos(azRad);
         const offsetY = currentRangeKm * Math.sin(azRad);
+
         const worldPos = { 
           x: position.x + offsetX, 
           y: position.y + offsetY 
         };
+
+
+        //Now take the worldPos offset and turn those into image pixel offsets according to kmPerPixel
+        
+
+        const imageCoords = this.worldToImageCoords(worldPos, scenario);
         
         // Sample rain rate using bilinear interpolation for smooth values
-        const rainRate = this.sampleRainRateBilinear(worldPos, scenario, maxPrecipitationRate);
+        const rainRate = this.sampleRainRateBilinear(imageCoords, scenario, maxPrecipitationRate);
         
-        if (rainRate !== null && rainRate > 1.0) { // Threshold to avoid noise
+    
+        
+        if (rainRate !== null && rainRate > 0.01) { // Threshold to avoid noise
           const specificAttenuation = this.getSpecificAttenuation(rainRate); // dB/km one-way
           // Two-way path: signal travels to target and back
-          stepAttenuationDb = 2.0 * specificAttenuation * rangeStepKm;
+          stepAttenuationDb = specificAttenuation * rangeStepKm;
           totalAttenuationDb += stepAttenuationDb;
+         
         }
         
         // Calculate received power at this range with accumulated path attenuation
         if (this.radarModel) {
           // Power-based calculation: compute received power and check SNR
-          sysPower = this.calculateReceivedPower(sysPower,rangeStepKm, frequency, stepAttenuationDb);
-          const snr = this.calculateSNR(sysPower, numPulses);
+          // Use TOTAL range from radar, not step increment
+          currentPowerDb = currentPowerDb - 2*this.pathLoss(currentRangeKm, rangeStepKm, frequency, stepAttenuationDb);
+          const snr = currentPowerDb - this.radarModel.noiseFloor;
           
           // Check if SNR meets detection threshold
           if (snr >= this.radarModel.min_snr) {
-            lastDetectableRange = currentRangeKm;
+            lastDetectableRange = currentRangeKm; 
           } else {
             // Power has dropped below minimum SNR - this is our detection limit
             break;
@@ -293,6 +305,7 @@ export class Radar {
         }
       }
       
+     
       return lastDetectableRange > 0 ? lastDetectableRange : this.calculateDetectionRange(rcs, numPulses, this.range);
       
     } catch (error) {
@@ -303,33 +316,42 @@ export class Radar {
   }
 
 
+  private worldToImageCoords(position: IPosition2D, scenario: IScenario): {x: number, y: number} {
+    if (!this.imageData) {
+      throw new Error('Image data not loaded');
+    }
+
+
+    const pixelsPerKmWidth = this.imageData.width / scenario.grid.width;
+    const pixelsPerKmHeight = this.imageData.height / scenario.grid.height;
+
+    // We can assume origin is (0,0) for the wolrd coordinates and get our initial pixel offsets
+    let pixelX = position.x * pixelsPerKmWidth;
+    let pixelY = position.y * pixelsPerKmHeight;
+
+    // Now subtract half the image dimensions to center the radar at the image center
+    pixelX += this.imageData.width / 2;
+    pixelY = -pixelY + this.imageData.height / 2;
+
+    return {x: pixelX, y: pixelY};
+
+
+  }
+
   /**
    * Sample rain rate using bilinear interpolation for smooth values
    * Returns null if position is outside image bounds
    */
-  private sampleRainRateBilinear(position: {x: number, y: number}, scenario: IScenario, maxPrecipitationRate: number): number | null {
+  private sampleRainRateBilinear(position: {x: number, y: number}, scenario: IScenario, maxPrecipitationRate: number): number  {
     if (!this.imageData) return null;
-    
-    const resolution = scenario.grid.resolution;
-    const gridWidthKm = scenario.grid.width;
-    const gridHeightKm = scenario.grid.height;
-    const widthPixels = gridWidthKm * resolution;
-    const heightPixels = gridHeightKm * resolution;
-    
-    const originX = scenario.grid.origin?.x || 0;
-    const originY = scenario.grid.origin?.y || 0;
-    
-    // Get continuous pixel coordinates (with fractional part)
-    const centerPixelX = widthPixels / 2;
-    const centerPixelY = heightPixels / 2;
-    const px = centerPixelX + (position.x - originX) * resolution;
-    const py = centerPixelY + (position.y - originY) * resolution; // Y axis is inverted in display visualization so we match here
-    
-    // Check bounds (need 1-pixel margin for interpolation)
-    if (px < 0 || px >= widthPixels - 1 || py < 0 || py >= heightPixels - 1) {
-      return null;
-    }
-    
+    const px = position.x;
+    const py = position.y;
+    const widthPixels = this.imageData.width;
+    const heightPixels = this.imageData.height;
+
+    // Need a 1px border for bilinear sampling (x1/y1 must be in-bounds).
+    if (!Number.isFinite(px) || !Number.isFinite(py)) return 0;
+    if (px < 0 || py < 0 || px >= widthPixels - 1 || py >= heightPixels - 1) return 0;
     // Get the four surrounding pixel coordinates
     const x0 = Math.floor(px);
     const y0 = Math.floor(py);
