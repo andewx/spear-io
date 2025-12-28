@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dbToLinear, linearToDb } from '../services/radarCalculations.js';
 import e from 'express';
+import { dataPath } from '../services/projectPaths.js';
 
 export type TPulseIntegrationMode = 'coherent' | 'noncoherent';
 
@@ -52,10 +53,8 @@ export class Radar {
   /** Canvas context and image data for precipitation image processing */
   async loadImageDataFromScenario(scenario: IScenario): Promise<void> {
 
-       // Construct file system path to precipitation image
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const imagePath = path.join(__dirname, '..', '..', 'src', 'data', 'images', scenario.precipitationFieldImage);
+    // Construct file system path to precipitation image from PROJECT_ROOT/src/data/images
+    const imagePath = dataPath('images', scenario.precipitationFieldImage);
     
     console.log('\nLoading precipitation image from:', imagePath);
 

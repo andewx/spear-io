@@ -8,9 +8,10 @@ import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import { SyntheticPrecipitationField } from '../synthetic/SyntheticPrecipitationField.js';
 import * as storage from '../services/fileStorage.js';
+import { dataPath } from '../services/projectPaths.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PRECIPITATION_DIR = path.join(process.cwd(), 'src', 'data', 'images');
+const PRECIPITATION_DIR = dataPath('images');
 export class SyntheticController {
     /**
      * POST /api/synthetic/precipitation
@@ -49,6 +50,19 @@ export class SyntheticController {
             }
             // Generate precipitation field
             const { imageFilename, overlayFilename, jetFilename } = await this.generateFieldImage(scenario);
+            //Delete the previous stored images if they exist
+            if (scenario.precipitationFieldImage) {
+                const oldImagePath = path.join(PRECIPITATION_DIR, scenario.precipitationFieldImage);
+                fs.unlink(oldImagePath).catch(() => { });
+            }
+            if (scenario.precipitationFieldOverlay) {
+                const oldOverlayPath = path.join(PRECIPITATION_DIR, scenario.precipitationFieldOverlay);
+                fs.unlink(oldOverlayPath).catch(() => { });
+            }
+            if (scenario.precipitationFieldJet) {
+                const oldJetPath = path.join(PRECIPITATION_DIR, scenario.precipitationFieldJet);
+                fs.unlink(oldJetPath).catch(() => { });
+            }
             // Update scenario with image filename
             scenario.precipitationFieldImage = imageFilename;
             scenario.precipitationFieldOverlay = overlayFilename;

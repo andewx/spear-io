@@ -1,0 +1,1 @@
+{"version":3,"file":"projectPaths.d.ts","sourceRoot":"","sources":["../../src/services/projectPaths.ts"],"names":[],"mappings":"AA2BA,0EAA0E;AAC1E,wBAAgB,cAAc,IAAI,MAAM,CAMvC;AAED,6CAA6C;AAC7C,wBAAgB,aAAa,IAAI,MAAM,CAEtC;AAED,oEAAoE;AACpE,wBAAgB,QAAQ,CAAC,GAAG,QAAQ,EAAE,MAAM,EAAE,GAAG,MAAM,CAEtD;AAED,sDAAsD;AACtD,wBAAgB,OAAO,CAAC,GAAG,QAAQ,EAAE,MAAM,EAAE,GAAG,GAAG,CAElD"}

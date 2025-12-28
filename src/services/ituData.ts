@@ -18,6 +18,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { ITU_RAIN_RATES } from '../types/index.js';
 import type { IITUData } from '../types/index.js';
+import { dataPath } from './projectPaths.js';
 
 let cachedITUData: IITUData | null = null;
 
@@ -33,7 +34,7 @@ export async function loadITUData(): Promise<IITUData> {
     return cachedITUData;
   }
 
-  const ituDir = path.join(process.cwd(), 'src', 'data', 'itu');
+  const ituDir = dataPath('itu');
   const files = await fs.readdir(ituDir);
   const csvFile = files.find(f => f.endsWith('.csv'));
 

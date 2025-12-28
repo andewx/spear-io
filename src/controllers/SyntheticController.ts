@@ -11,11 +11,12 @@ import fs from 'fs/promises';
 import { SyntheticPrecipitationField } from '../synthetic/SyntheticPrecipitationField.js';
 import type { IScenario, TAPIResponse } from '../types/index.js';
 import * as storage from '../services/fileStorage.js';
+import { dataPath } from '../services/projectPaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PRECIPITATION_DIR = path.join(process.cwd(),'src', 'data', 'images');
+const PRECIPITATION_DIR = dataPath('images');
 
 export class SyntheticController {
   /**

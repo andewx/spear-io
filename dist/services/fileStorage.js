@@ -4,10 +4,11 @@
  */
 import { promises as fs } from 'fs';
 import path from 'path';
-const DATA_DIR = path.join(process.cwd(), 'src', 'data');
-const PLATFORMS_DIR = path.join(DATA_DIR, 'platforms');
-const SCENARIOS_DIR = path.join(DATA_DIR, 'scenarios');
-const SESSIONS_DIR = path.join(DATA_DIR, 'session');
+import { dataPath, getSrcDataDir } from './projectPaths.js';
+const DATA_DIR = getSrcDataDir();
+const PLATFORMS_DIR = dataPath('platforms');
+const SCENARIOS_DIR = dataPath('scenarios');
+const SESSIONS_DIR = dataPath('session');
 /**
  * Ensure directory exists, create if not
  */

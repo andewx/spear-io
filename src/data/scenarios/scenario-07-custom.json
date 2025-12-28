@@ -1,21 +1,17 @@
 {
   "id": "scenario-07-custom",
   "name": "Multiple Fighter F16 vs. SAM",
-  "precipitationFieldImage": "precip_scenario-07-custom_1766949812717.png",
-  "precipitationFieldOverlay": "precip_overlay_scenario-07-custom_1766949812846.png",
-  "precipitationFieldJet": "precip_jet_precip_scenario-07-custom_1766949812717.png",
   "description": "Multiple Fighter Configuration",
+  "timeStep": 0.5,
   "grid": {
     "width": 800,
     "height": 450,
     "resolution": 2
   },
-  "timeStep": 0.5,
   "platforms": {
     "sams": [
       {
         "id": "sam-s400-2",
-        "configId": "sam-s400-2",
         "type": "sam",
         "platform": {
           "id": "sam-s400-2",
@@ -48,7 +44,6 @@
     "fighters": [
       {
         "id": "fighter-f16",
-        "configId": "fighter-f16",
         "type": "fighter",
         "platform": {
           "id": "fighter-f16",
@@ -73,11 +68,12 @@
         },
         "velocity": 2,
         "heading": 1.2676136230959307,
-        "flightPath": "straight"
+        "data": {
+          "flightPath": "straight"
+        }
       },
       {
         "id": "fighter-f16",
-        "configId": "fighter-f16",
         "type": "fighter",
         "platform": {
           "id": "fighter-f16",
@@ -102,7 +98,9 @@
         },
         "velocity": 0.8,
         "heading": 1.2065506440261373,
-        "flightPath": "straight"
+        "data": {
+          "flightPath": "straight"
+        }
       }
     ]
   },
@@ -117,5 +115,8 @@
       "sigmoidK": 4.6
     }
   },
-  "updatedAt": "2025-12-28T19:24:24.287Z"
+  "precipitationFieldImage": "precip_scenario-07-custom_1766957517650.png",
+  "updatedAt": "2025-12-28T19:24:24.287Z",
+  "precipitationFieldOverlay": "precip_overlay_scenario-07-custom_1766957517782.png",
+  "precipitationFieldJet": "precip_jet_precip_scenario-07-custom_1766957517650.png"
 }
