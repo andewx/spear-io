@@ -18,9 +18,8 @@ export class MainController {
 
       // Call main process command
       await httpCommand(cmd);
-      const response: TAPIResponse<typeof {}> = {
+      const response: TAPIResponse<never> = {
         success: true,
-        data: {},
       };
       
       res.json(response);
@@ -28,7 +27,7 @@ export class MainController {
        console.log("Unable to process command");
     }
   
-}
+  }
 }
   
   
