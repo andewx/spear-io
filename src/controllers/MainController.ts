@@ -18,9 +18,9 @@ export class MainController {
 
       // Call main process command
       await httpCommand(cmd);
-      const response: TAPIResponse<never> = {
+      const response: TAPIResponse<void> = {
         success: true,
-        data:never,
+        data:undefined,
       };
       
       res.json(response);
