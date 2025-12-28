@@ -234,6 +234,7 @@ export class Radar {
       const rangeStepKm = kmPerPixel * 0.1; // Sample at fine intervals
       const NRay = Math.ceil(maxRangeKm / rangeStepKm);
       const frequency = this.radarModel.frequency;
+      let totalAttenuationDb = 0; let stepAttenuationDb = 0;
 
       //Scenario max precipitation rate
       const maxPrecipitationRate = scenario.environment.precipitation.maxRainRateCap || 35; // mm/hr
@@ -262,7 +263,8 @@ export class Radar {
         if (rainRate !== null && rainRate > 1.0) { // Threshold to avoid noise
           const specificAttenuation = this.getSpecificAttenuation(rainRate); // dB/km one-way
           // Two-way path: signal travels to target and back
-          const stepAttenuationDb = 2.0 * specificAttenuation * rangeStepKm;
+          stepAttenuationDb = 2.0 * specificAttenuation * rangeStepKm;
+          totalAttenuationDb += stepAttenuationDb;
         }
         
         // Calculate received power at this range with accumulated path attenuation
