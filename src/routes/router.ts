@@ -16,10 +16,13 @@ const scenarioController = new ScenarioController();
 const simulationController = new SimulationController();
 const syntheticController = new SyntheticController();
 const formController = new FormController();
+const mainController = new MainController();
 
 // Create main router
 const router = Router();
 
+
+router.get('/main/:cmd', async (req,res)=> mainController.command(req,res));
 
 // ============================================================================
 // Synthetic/Precipitation Routes
@@ -31,6 +34,8 @@ router.post('/synthetic/precipitation', async (req, res) => {
 router.get('/synthetic/precipitation/:filename', async (req, res) => {
   await syntheticController.servePrecipitationImage(req, res);
 });
+
+
 
 // ============================================================================
 // Platform Routes
