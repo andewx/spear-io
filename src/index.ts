@@ -100,7 +100,7 @@ export async function httpCommand(cmd: string): Promise<void>{
   }
 }
 
-async cmdShutdown(): Promise<void>{
+async function cmdShutdown(): Promise<void>{
  process.stdout.write('\nShutting down server...\n');
   
   if (server) {
