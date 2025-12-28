@@ -236,7 +236,7 @@ const main = async (): Promise<void> => {
     await itu.loadITUData();
 
     // Start server
-    server = app.listen(PORT, () => {
+    server = app.listen(PORT,`0.0.0.0`, () => {
       process.stdout.write(`\nServer running on http://localhost:${PORT}\n`);
       process.stdout.write(`API endpoints:\n`);
       process.stdout.write(`  - GET    /api/platforms\n`);
